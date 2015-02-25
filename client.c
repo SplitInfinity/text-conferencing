@@ -9,6 +9,11 @@
 #include <ctype.h>
 #include <string.h>
 #include <sys/select.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
+#include "utils.h"
 
 #define STDIN 0
 
@@ -64,6 +69,31 @@ void cmd_login() {
 		printf ("Usage: /login <client ID> <password> <server IP address> <server port>\n");
 	} else {
 		printf("LOGIN command detected.\nClientID: %s, Password: %s, Server IP: %s, Server Port: %s\n", clientID, password, serverIPAddress, serverPort);
+		struct addrinfo hints, *serverInfo = NULL;
+
+		memset (&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = AI_PASSIVE;
+
+		getaddrinfo (serverIPAddress, serverPort, &hints, &serverInfo);
+
+		if (serverInfo != NULL) {
+			socketFd = socket (serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
+
+			if (connect (socketFd, serverInfo->ai_addr, serverInfo->ai_addrlen)) {
+				printf ("Could not connect to server.\n");
+				socketFd = -1;
+				return;
+			}
+
+			send (socketFd, "HI", 3, 0);
+
+		} else {
+			printf ("No server found at the given address and port.\n");
+		}
+
+		freeaddrinfo (serverInfo);
 	}
 
 	return;
@@ -75,6 +105,8 @@ void cmd_logout() {
 		printf ("Usage: /logout\n");
 	} else {
 		printf("LOGOUT command detected.\n");
+		close (socketFd);
+		socketFd = -1;
 	}
 	
 	return;
@@ -332,7 +364,7 @@ int createReadFdSet (fd_set *set) {
 }
 
 int main () {
-	rl_attempted_completion_function = (CPPFunction *)tab_completion;
+	rl_attempted_completion_function = (rl_completion_func_t *)tab_completion;
 	fd_set readFdSet;
 	FD_ZERO (&readFdSet);
 
@@ -350,7 +382,12 @@ int main () {
 
 		if (FD_ISSET (socketFd, &readFdSet)) {			
 			// Server sent something
-			printf ("Data waiting to be read from socket!\n");
+			char buf[1000];
+			if (recv (socketFd, buf, 1000, 0)) {
+				printf ("Received: %s\n", buf);
+			} else {
+				socketFd = -1;
+			}
 		}
 	}
 
