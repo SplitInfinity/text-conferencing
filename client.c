@@ -13,13 +13,18 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <math.h>
+
 #include "utils.h"
 
 #define STDIN 0
 
 int socketFd = -1;					// Socket for connection with conferencing server
-char* currentSessionID = NULL;
+char *currentClientID = NULL;
+char *currentSessionID = NULL;
 bool userWantsToQuit = false;
+char buffer[BUFFERLEN];
+unsigned int packetSize;
 
 /* This struct is used to represent each command that the client understands.
  * 		name - the name of the command
@@ -69,6 +74,13 @@ void cmd_login() {
 		printf ("Usage: /login <client ID> <password> <server IP address> <server port>\n");
 	} else {
 		printf("LOGIN command detected.\nClientID: %s, Password: %s, Server IP: %s, Server Port: %s\n", clientID, password, serverIPAddress, serverPort);
+
+		if (currentClientID != NULL) {
+			free (currentClientID);
+		}
+
+		currentClientID = strdup (clientID);
+
 		struct addrinfo hints, *serverInfo = NULL;
 
 		memset (&hints, 0, sizeof(hints));
@@ -87,8 +99,8 @@ void cmd_login() {
 				return;
 			}
 
-			send (socketFd, "HI", 3, 0);
-
+			packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s,%s>", LOGIN, strlen (clientID) + strlen (password) + 3, clientID, clientID, password);
+			send (socketFd, buffer, packetSize, 0);
 		} else {
 			printf ("No server found at the given address and port.\n");
 		}
@@ -105,8 +117,17 @@ void cmd_logout() {
 		printf ("Usage: /logout\n");
 	} else {
 		printf("LOGOUT command detected.\n");
-		close (socketFd);
-		socketFd = -1;
+
+		if (socketFd != -1) {
+			packetSize = snprintf (buffer, BUFFERLEN, "%d:%d:%s", EXIT, 0, currentClientID);
+			send (socketFd, buffer, packetSize, 0);
+			free (currentClientID);
+			currentClientID = NULL;
+			close (socketFd);
+			socketFd = -1;
+		} else {
+			printf ("Cannot logout - you are not connected to a server.\n");
+		}
 	}
 	
 	return;
@@ -124,6 +145,9 @@ void cmd_joinsession() {
 		}
 		printf("JOIN SESSION command detected.\nSession ID: %s\n", sessionID);
 		currentSessionID = strdup(sessionID);
+
+		packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s>", JOIN, strlen (currentSessionID), currentClientID, currentSessionID);
+		send (socketFd, buffer, packetSize, 0);
 	}
 	
 	return;
@@ -137,8 +161,14 @@ void cmd_leavesession() {
 		printf("LEAVE SESSION command detected.\n");
 		if (currentSessionID != NULL) {
 			free(currentSessionID);
+			currentSessionID = NULL;
+
+			packetSize = snprintf (buffer, BUFFERLEN, "%d:%d:%s", LEAVE_SESS, 0, currentClientID);
+			send (socketFd, buffer, packetSize, 0);
+		} else {
+			printf ("Cannot leave session - you are not part of any session.\n");
 		}
-		currentSessionID = NULL;
+		
 	}
 
 	return;
@@ -152,6 +182,9 @@ void cmd_createsession() {
 		printf ("Usage: /createsession <session ID>\n");
 	} else {
 		printf("CREATE SESSION command detected.\nSession ID: %s\n", sessionID);
+
+		packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s>", NEW_SESS, strlen (sessionID), currentClientID, sessionID);
+		send (socketFd, buffer, packetSize, 0);
 	}
 	
 	return;
@@ -163,6 +196,9 @@ void cmd_list() {
 		printf ("Usage: /list\n");
 	} else {
 		printf("LIST command detected.\n");
+
+		packetSize = snprintf (buffer, BUFFERLEN, "%d:%d:%s", QUERY, 0, currentClientID);
+		send (socketFd, buffer, packetSize, 0);
 	}
 
 	return;
@@ -261,6 +297,9 @@ void execute_line (char *strippedLine) {
 	} else {
 		if (currentSessionID != NULL) {
 			printf("Sending the following message to everyone in session ID %s:\n%s\n", currentSessionID, strippedLine);
+
+			packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s>", MESSAGE, strlen (strippedLine) + 2, currentClientID, strippedLine);
+			send (socketFd, buffer, packetSize, 0);
 		} else {
 			printf("Can't send message - you are not part of any session!\n");
 		}
@@ -382,9 +421,10 @@ int main () {
 
 		if (FD_ISSET (socketFd, &readFdSet)) {			
 			// Server sent something
-			char buf[1000];
-			if (recv (socketFd, buf, 1000, 0)) {
-				printf ("Received: %s\n", buf);
+			unsigned int bytesReceived;
+			if ((bytesReceived = recv (socketFd, buffer, BUFFERLEN, 0))) {
+				buffer[bytesReceived] = '\0';
+				printf ("Received: %s\n", buffer);
 			} else {
 				socketFd = -1;
 			}

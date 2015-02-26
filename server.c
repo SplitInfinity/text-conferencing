@@ -9,21 +9,22 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <pthread.h>
+#include "utils.h"
 
 #define BACKLOG 1
 
-void* handleClient (void *fd) {
-	long socket = (long)fd;
-	char buf[1000];
+void handleClient (int fd) {
+	int socket = fd;
+	char buffer[BUFFERLEN];
 	int bytesReceived;
 
-	while ((bytesReceived = recv (socket, buf, 1000, 0))) {
-		printf ("Received: %s\n", buf);
-		send (socket, buf, bytesReceived, 0);
+	while ((bytesReceived = recv (socket, buffer, BUFFERLEN, 0))) {
+		buffer[bytesReceived] = '\0';
+		printf ("Received: %s\n", buffer);
+		send (socket, buffer, bytesReceived, 0);
 	}
 
 	printf ("Client logged out.\n");
-	pthread_exit(NULL);
 }
 
 int main (int argc, char **argv) {
@@ -51,12 +52,11 @@ int main (int argc, char **argv) {
 		while (1) {
 			struct sockaddr_storage their_addr;
 			socklen_t their_addrlen = sizeof(their_addr);
-			pthread_t newThread;
 
 			listen (listenSocket, BACKLOG);
 			long newFd = accept (listenSocket, (struct sockaddr *)&their_addr, &their_addrlen);
 
-			pthread_create(&newThread, NULL, handleClient, (void *)newFd);
+			handleClient (newFd);
 		}
 	}
 
