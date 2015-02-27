@@ -101,6 +101,23 @@ void cmd_login() {
 
 			packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s,%s>", LOGIN, strlen (clientID) + strlen (password) + 3, clientID, clientID, password);
 			send (socketFd, buffer, packetSize, 0);
+			recv (socketFd, buffer, BUFFERLEN, 0);
+
+			Packet ackPacket;
+
+			sscanf (buffer, "%d:%d:%s:%s", &ackPacket.type, &ackPacket.size, ackPacket.source, ackPacket.data);
+
+			switch (ackPacket.type) {
+				case LO_ACK: {
+					printf ("Logged in successfully.\n");
+					break;
+				}
+
+				case LO_NAK: {
+					printf ("Login unsuccessful. Reason: %s\n", ackPacket.data);
+					break;
+				}
+			}
 		} else {
 			printf ("No server found at the given address and port.\n");
 		}
