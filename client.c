@@ -75,12 +75,6 @@ void cmd_login() {
 	} else {
 		printf("LOGIN command detected.\nClientID: %s, Password: %s, Server IP: %s, Server Port: %s\n", clientID, password, serverIPAddress, serverPort);
 
-		if (currentClientID != NULL) {
-			free (currentClientID);
-		}
-
-		currentClientID = strdup (clientID);
-
 		struct addrinfo hints, *serverInfo = NULL;
 
 		memset (&hints, 0, sizeof(hints));
@@ -99,17 +93,22 @@ void cmd_login() {
 				return;
 			}
 
-			packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s,%s>", LOGIN, strlen (clientID) + strlen (password) + 3, clientID, clientID, password);
+			packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:%s,%s", LOGIN, strlen (clientID) + strlen (password) + 1, clientID, clientID, password);
 			send (socketFd, buffer, packetSize, 0);
 			recv (socketFd, buffer, BUFFERLEN, 0);
 
 			Packet ackPacket;
 
-			sscanf (buffer, "%d:%d:%s:%s", &ackPacket.type, &ackPacket.size, ackPacket.source, ackPacket.data);
-
+			sscanf (buffer, "%d%*[:]%d%*[:]%[^:\n]%*[:]%[^\n]", &ackPacket.type, &ackPacket.size, ackPacket.source, ackPacket.data);
 			switch (ackPacket.type) {
 				case LO_ACK: {
 					printf ("Logged in successfully.\n");
+
+					if (currentClientID != NULL) {
+						free (currentClientID);
+					}
+
+					currentClientID = strdup (clientID);
 					break;
 				}
 
@@ -157,13 +156,9 @@ void cmd_joinsession() {
 	if (!sessionID || strtok(NULL, " ") != NULL) {
 		printf ("Usage: /joinsession <session ID>\n");
 	} else {
-		if (currentSessionID != NULL) {
-			free(currentSessionID);
-		}
 		printf("JOIN SESSION command detected.\nSession ID: %s\n", sessionID);
-		currentSessionID = strdup(sessionID);
 
-		packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s>", JOIN, strlen (currentSessionID), currentClientID, currentSessionID);
+		packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:%s", JOIN, strlen (sessionID), currentClientID, sessionID);
 		send (socketFd, buffer, packetSize, 0);
 	}
 	
@@ -200,7 +195,7 @@ void cmd_createsession() {
 	} else {
 		printf("CREATE SESSION command detected.\nSession ID: %s\n", sessionID);
 
-		packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s>", NEW_SESS, strlen (sessionID), currentClientID, sessionID);
+		packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:%s", NEW_SESS, strlen (sessionID), currentClientID, sessionID);
 		send (socketFd, buffer, packetSize, 0);
 	}
 	
@@ -419,6 +414,57 @@ int createReadFdSet (fd_set *set) {
 	return nfds;
 }
 
+// Handles the most recent server response contained in the global buffer.
+void handle_server_response () {
+	Packet serverResponse;
+	sscanf (buffer, "%d%*[:]%d%*[:]%[^:\n]%*[:]%[^\n]", &serverResponse.type, &serverResponse.size, serverResponse.source, serverResponse.data);
+	
+	switch (serverResponse.type) {
+		case JN_ACK: {
+			printf ("Joined session %s\n.", serverResponse.data);
+
+			if (currentSessionID != NULL) {
+				free(currentSessionID);
+			}
+
+			currentSessionID = strdup((char *)serverResponse.data);
+			break;
+		}
+
+		case JN_NAK: {
+			char sessionID[MAX_DATA_SIZE] = {0};
+			char reasonForFailure[MAX_DATA_SIZE] = {0};
+
+			sscanf ((char *)serverResponse.data, "%[^,]%*[,]%[^\n]", sessionID, reasonForFailure);
+			printf ("Failed to join session %s. Reason: %s\n", sessionID, reasonForFailure);
+			break;
+		}
+
+		case NS_ACK: {
+			printf ("Created and joined session %s\n.", serverResponse.data);
+
+			if (currentSessionID != NULL) {
+				free(currentSessionID);
+			}
+
+			currentSessionID = strdup((char *)serverResponse.data);
+			break;
+		}
+
+		case QU_ACK: {
+			printf ("Here's a list of users and sessions:\n%s", serverResponse.data);
+			break;
+		}
+
+		case MESSAGE: {
+			printf ("%s: %s\n", serverResponse.source, serverResponse.data);
+			break;
+		}
+	}
+
+	return;
+}
+
 int main () {
 	rl_attempted_completion_function = (rl_completion_func_t *)tab_completion;
 	fd_set readFdSet;
@@ -442,6 +488,7 @@ int main () {
 			if ((bytesReceived = recv (socketFd, buffer, BUFFERLEN, 0))) {
 				buffer[bytesReceived] = '\0';
 				printf ("Received: %s\n", buffer);
+				handle_server_response ();
 			} else {
 				socketFd = -1;
 			}
