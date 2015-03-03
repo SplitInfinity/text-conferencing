@@ -51,7 +51,7 @@ void clientlist_remove (Client ** client_list_head, char* query_clientID){
 
 	//First one is the one we need to delete
 	if (strcmp(prev->clientID, query_clientID) == 0){
-		client_list_head = &(prev->nxt);
+		*client_list_head = prev->nxt;
 		free(prev);
 		return;
 	}
