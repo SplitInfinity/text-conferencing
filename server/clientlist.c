@@ -80,7 +80,7 @@ Client * clientlist_find (Client ** client_list_head, char* query_clientID){
 
 	Client * traverser = *client_list_head;
 
-	//If only one element large
+	//I dont think this is necissary!!! (delete)
 	if (strcmp(traverser->clientID, query_clientID) == 0)
 		return traverser;
 
@@ -89,7 +89,6 @@ Client * clientlist_find (Client ** client_list_head, char* query_clientID){
 			return traverser;
 		traverser = traverser->nxt;
 	}
-
 	return NULL;	
 }
 
