@@ -8,11 +8,15 @@
 #include <sys/socket.h>
 #include <pthread.h>
 #include <time.h>
+#include "clientlist.h"
+
 
 #define BACKLOG 20			// the number of pending connections queue will hold (most systems use 20)
 
 
 
+static Client * clientlist = NULL; 
+int n = 0;
 
 
 void waitFor (unsigned int secs) {
@@ -20,18 +24,52 @@ void waitFor (unsigned int secs) {
     while (time(0) < retTime);    // Loop until it arrives.
 }
 
+
+void server_listClients(int client_sock){
+	if (clientlist == NULL)
+		return;
+
+	char msg[] = "List of all clients on the server:\n";
+	int msg_len = strlen(msg);
+	send (client_sock, msg, msg_len, 0);
+
+	Client * traverse = clientlist;
+	while(traverse != NULL){
+		msg_len = strlen(traverse->clientID);
+		send (client_sock, traverse->clientID, msg_len, 0);
+		send(client_sock,"\n", 1,0);
+		traverse = traverse->nxt;
+	}
+}
+
+
+void sever_listSessions(int client_sock){
+	/* Code for listing */
+}
+
+void server_broadcast (int client_sock){
+	/* Code to broadcast messages */
+}
+
+
 /*
  * Client Handler
  *
  */
-void * client_handler(void * conn_sock){		//DOes this HAVE to be a function pointer?
+void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a function pointer?
 	int client_sock = *((int*) conn_sock); 	// Get the client socket
 
 	int msg_len = strlen("Hi from Arash");
 	send (client_sock, "Hi from Arash\n", msg_len+1, 0);
-	
-	int n = 0;
-	while(1){
+	n++;
+	char * temp = (char*)malloc(10000*sizeof(char));
+	sprintf(temp, "Client %d", n);
+	Client * newClient = create_client(temp, "", "", "",  1, client_sock);
+	free(temp);
+	clientlist_insert_front(&clientlist, newClient);
+
+	/*int n = 0;
+	while(1 ){
 		waitFor(1);
 		
 		char * temp = (char*)malloc(10000*sizeof(char));
@@ -39,7 +77,8 @@ void * client_handler(void * conn_sock){		//DOes this HAVE to be a function poin
 		msg_len = strlen(temp);
 		send (client_sock, temp, msg_len+1, 0);
 		n++;
-	}
+	}*/
+	server_listClients(client_sock);
 	close(client_sock);
 	return 0;
 }
@@ -60,6 +99,9 @@ int main (int argc, char ** arv){
 		return 1;
 	}
 	printf("Establishing teleconference server...\n");
+
+	//Set up the clientlist
+
 
 	//Extract server port#
 	//server_port = atoi(arv[1]);
@@ -90,6 +132,8 @@ int main (int argc, char ** arv){
 		return 1;
 	}
 
+
+
 	//Lets listen for incoming connections
 	if (listen(sockfd, BACKLOG) == -1){
 		//Change this part later on so it is correct but for now
@@ -103,7 +147,7 @@ int main (int argc, char ** arv){
 	while (1) {
 		new_sockfd = accept(sockfd, (struct sockaddr *) &connector_addr, &sockaddr_size);
 
-		pthread_create(&connection, NULL, client_handler, (void*) &new_sockfd);
+		pthread_create(&connection, NULL, server_client_handler, (void*) &new_sockfd);
 
 
 	}
