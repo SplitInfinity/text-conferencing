@@ -18,7 +18,7 @@ void sessionlist_remove(Session ** session_list_head, char * query_sessionID);
 
 Session * sessionlist_find(Session ** session_list_head, char * query_sessionID);
 
-void sessionlist_addclient(Session * specific_session, Client * new_client);
+Session * sessionlist_addclient(Session ** session_list_head, char * sessionID, Client * new_client);
 
 
 

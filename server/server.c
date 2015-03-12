@@ -129,11 +129,10 @@ int server_client_join_session(Client * newClient, char * sessionID){
 	if (sessionID == NULL)
 		return BAD_SESSION;
 
-	Session * specifiedSession = sessionlist_find(&sessionlist, sessionID);
-	if (specifiedSession == NULL)
+	if (sessionlist_find(&sessionlist, sessionID) == NULL)
 		return SESSION_NOT_EXIST;
 
-	sessionlist_addclient(specifiedSession, newClient);
+	sessionlist_addclient(&sessionlist,sessionID, newClient);
 	return SERVER_SUCCESS;
 }
 

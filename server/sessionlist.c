@@ -7,12 +7,13 @@
 
 
 Session * create_session(char * sessionID){
+	//Do i need to return NULL on failure?
 	Session * new_session = (Session *) malloc (sizeof(Session));
-
 	new_session->sessionID = (char *) malloc(MAX_SESSIONID_LEN*sizeof(char));
 	strcpy(new_session->sessionID, sessionID);
 	new_session->clientsInSession = NULL;
 	new_session->nxt = NULL;
+	return new_session;
 }
 
 
@@ -62,7 +63,28 @@ Session * sessionlist_find(Session ** session_list_head, char * query_sessionID)
 	return NULL;
 }
 
-void sessionlist_addclient(Session * specific_session, Client * new_client){
+Client * sessionlist_find_client (Session * specific_session, Client * queryClient){
+	if (specific_session == NULL || queryClient == NULL)
+		return NULL;
+	Client ** sessionclientlist = specific_session->clientsInSession;
+	if (sessionclientlist == NULL)
+		return NULL;
+
+	return clientlist_find(sessionclientlist, queryClient->clientID);
+}
 
 
+
+Session * sessionlist_addclient(Session ** session_list_head, char * sessionID, Client * new_client){
+	if (session_list_head || sessionID == NULL || new_client == NULL)
+		return NULL;
+
+	Session * specific_session = sessionlist_find(session_list_head, sessionID);
+
+	if (specific_session == NULL)
+		return NULL;
+
+	clientlist_insert_front(specific_session->clientsInSession,new_client);
+
+	return specific_session;
 }
