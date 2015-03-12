@@ -9,14 +9,26 @@
 #include <pthread.h>
 #include <time.h>
 #include "clientlist.h"
+#include "sessionlist.h"
+#include "err.h"
 
 
 #define BACKLOG 20			// the number of pending connections queue will hold (most systems use 20)
 
 
 
-static Client * clientlist = NULL; 
+static Client * clientlist = NULL;
+static Session * sessionlist = NULL; 
 int n = 0;
+
+
+/*
+ *	HELPER/TRIVIAL SERVER FUNCTION
+ *
+ *
+ */
+
+
 
 
 void waitFor (unsigned int secs) {
@@ -43,14 +55,100 @@ void server_listClients(int client_sock){
 }
 
 
-void sever_listSessions(int client_sock){
+/*
+ *	IMPORTANT SERVER FUNCTION
+ *
+ *
+ */
+
+
+
+int sever_list_sessions(int client_sock){
 	/* Code for listing */
+	if (sessionlist == NULL)
+		return SERVER_NO_SESSIONS;
+	char msg[] = "List of all sessions on the server:\n";
+	int msg_len = strlen(msg);
+	send (client_sock, msg, msg_len, 0);
+
+	Session * traverse = sessionlist;
+	while(traverse != NULL){
+		msg_len = strlen(traverse->sessionID);
+		send (client_sock, traverse->sessionID, msg_len, 0);
+		send(client_sock,"\n", 1,0);
+		traverse = traverse->nxt;
+	}
+	return SERVER_SUCCESS;
 }
 
-void server_broadcast (int client_sock){
+
+int server_broadcast (char * message, char * messageSenderID, char * sessionID){
 	/* Code to broadcast messages */
+	if (message == NULL)
+		return SERVER_PARAM_ERROR;
+	if (sessionID == NULL)
+		return BAD_SESSION;
+
+	Session * queriedsession = sessionlist_find(&sessionlist, sessionID);
+	if (queriedsession == NULL)
+		return SESSION_NOT_EXIST;
+
+	if (queriedsession->clientsInSession == NULL)
+		return SERVER_BROADCAST_ERROR;
+
+	Client * sessionClient = *queriedsession->clientsInSession;
+
+	while(sessionClient != NULL){
+		//We dont want to send to ourself
+		if (strcmp(messageSenderID, sessionClient->clientID) !=0){
+			int msg_len = strlen(message);
+			send (sessionClient->socket, message, msg_len, 0);
+			send (sessionClient->socket,"\n", 1,0);
+		}
+		sessionClient = sessionClient->nxt;
+	}
+
+	return SERVER_SUCCESS;
 }
 
+int server_add_new_session(char * sessionID){
+	/* Code to add session */
+	if (sessionlist_find(&sessionlist, sessionID) != NULL)
+		return SESSION_EXISTS;
+	Session * newSession = create_session(sessionID);
+	if (newSession == NULL)
+		return BAD_SESSION;
+	sessionlist_insert_front(&sessionlist, newSession);
+	return SERVER_SUCCESS;
+}
+
+int server_client_join_session(Client * newClient, char * sessionID){
+	/* Code to add session */
+	if (newClient == NULL)
+		return BAD_CLIENT;
+	if (sessionID == NULL)
+		return BAD_SESSION;
+
+	Session * specifiedSession = sessionlist_find(&sessionlist, sessionID);
+	if (specifiedSession == NULL)
+		return SESSION_NOT_EXIST;
+
+	sessionlist_addclient(specifiedSession, newClient);
+	return SERVER_SUCCESS;
+}
+
+int server_accept_client(Client * newClient) {
+	/* Check to determine if client is kosher */
+	if (newClient == NULL)
+		return -1; 
+	if (newClient->clientID == NULL)
+		return -1;
+	if (clientlist_find (&clientlist, newClient->clientID) == NULL)
+		return -1;
+
+	//So far so good!
+	return SERVER_SUCCESS;
+}
 
 /*
  * Client Handler
@@ -86,6 +184,11 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 	clientlist_remove(&clientlist, newClient->clientID);
 	return 0;
 }
+
+
+
+
+
 
 
 
