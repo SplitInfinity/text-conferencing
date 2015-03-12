@@ -93,14 +93,20 @@ void cmd_login() {
 				return;
 			}
 
-			packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:%s,%s", LOGIN, strlen (clientID) + strlen (password) + 1, clientID, clientID, password);
+			Packet loginPacket;
+			loginPacket.type = LOGIN;
+			loginPacket.size = strlen (clientID) + strlen (password);
+			snprintf (loginPacket.source, sizeof(loginPacket.source), "%s", clientID);
+			snprintf (loginPacket.data, sizeof(loginPacket.data), "%s,%s", clientID, password);
+			packetSize = create_bytearray (&loginPacket, buffer);
+			//packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:%s,%s", LOGIN, strlen (clientID) + strlen (password) + 1, clientID, clientID, password);
 			send (socketFd, buffer, packetSize, 0);
 			recv (socketFd, buffer, BUFFERLEN, 0);
 
-			Packet ackPacket;
-
-			sscanf (buffer, "%d%*[:]%d%*[:]%[^:\n]%*[:]%[^\n]", &ackPacket.type, &ackPacket.size, ackPacket.source, ackPacket.data);
-			switch (ackPacket.type) {
+			extract_packet (&loginPacket, buffer);
+			
+			// sscanf (buffer, "%d%*[:]%d%*[:]%[^:\n]%*[:]%[^\n]", &ackPacket.type, &ackPacket.size, ackPacket.source, ackPacket.data);
+			switch (loginPacket.type) {
 				case LO_ACK: {
 					printf ("Logged in successfully.\n");
 
@@ -113,7 +119,7 @@ void cmd_login() {
 				}
 
 				case LO_NAK: {
-					printf ("Login unsuccessful. Reason: %s\n", ackPacket.data);
+					printf ("Login unsuccessful. Reason: %s\n", loginPacket.data);
 					break;
 				}
 			}

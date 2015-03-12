@@ -1,10 +1,19 @@
-all: client server
+all: client server bossman
 
-client: client.c utils.h
-	gcc -Wall -g client.c -o client.out -lreadline
+client: client.o utils.o
+	gcc -Wall -g client.o utils.o -o client.out -lreadline
 
 server: server.c
 	gcc -Wall -g server.c -o server.out
 
+client.o: client.c
+	gcc -Wall -g client.c -c
+
+utils.o: utils.h utils.c
+	gcc -Wall -g utils.c -c
+
+bossman: server/server.c
+	gcc -Wall -g -pthread server/server.c server/clientlist.c server/sessionlist.c -o server/server.out
+
 clean:
-	rm client server *~
+	rm client.out server.out *~

@@ -5,7 +5,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#define BUFFERLEN 200
+#define BUFFERLEN 1000
 #define MAX_CLIENT_ID_SIZE 20
 #define MAX_DATA_SIZE 100
 
@@ -35,8 +35,26 @@
 typedef struct {
 	unsigned int type;
 	unsigned int size; 
-	unsigned char source[MAX_CLIENT_ID_SIZE];
-	unsigned char data[MAX_DATA_SIZE];
+	char source[MAX_CLIENT_ID_SIZE];
+	char data[MAX_DATA_SIZE];
 } Packet;
+
+/* Returns the given packet as a byte array that can be sent over a socket.
+ *
+ * @param[in]	packet 	The packet containing all the source data
+ * @param[out]	buffer  A pointer to a buffer that will be filled with the byte array
+ * @return		The size of the byte array
+ */
+
+unsigned int create_bytearray (Packet* packet, char* buffer);
+
+/* Extracts a packet from the given byte array.
+ *
+ * @param[out]  packet      The packet struct to fill in
+ * @param[in]	bytearray 	The byte array containing the source data
+ * @return		The extracted packet
+ */
+
+void extract_packet (Packet* packet, const char* bytearray);
 
 #endif

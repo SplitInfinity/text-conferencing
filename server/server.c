@@ -11,6 +11,7 @@
 #include "clientlist.h"
 #include "sessionlist.h"
 #include "err.h"
+#include "../utils.h"
 
 
 #define BACKLOG 20			// the number of pending connections queue will hold (most systems use 20)
@@ -19,7 +20,6 @@
 
 static Client * clientlist = NULL;
 static Session * sessionlist = NULL; 
-int n = 0;
 
 
 /*
@@ -155,15 +155,29 @@ int server_accept_client(Client * newClient) {
  */
 void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a function pointer?
 	int client_sock = *((int*) conn_sock); 	// Get the client socket
+	char buffer[BUFFERLEN];
+	int bytes_received =0; 
+	while ((bytes_received = recv (client_sock, buffer, BUFFERLEN, 0)) ) {
+		buffer[bytes_received] = '\0';
+		printf("INCOMING PACK-ET: %s\n", buffer);
+		send (client_sock, buffer, bytes_received, 0);
 
+		char * temp = (char*)malloc(10000*sizeof(char));
+		sprintf(temp, "Client %d", client_sock);
+		Client * newClient = create_client(temp, "", "", "",  1, client_sock);
+		clientlist_insert_front(&clientlist, newClient);
+		//server_listClients(client_sock);
+	}
+
+
+/*
 	int msg_len = strlen("Hi from Arash");
 	send (client_sock, "Hi from Arash\n", msg_len+1, 0);
 	n++;
 	char * temp = (char*)malloc(10000*sizeof(char));
 	sprintf(temp, "Client %d", n);
-	Client * newClient = create_client(temp, "", "", "",  1, client_sock);
 	free(temp);
-	clientlist_insert_front(&clientlist, newClient);
+	 */
 
 	/*int n = 0;
 	while(1 ){
@@ -178,9 +192,8 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 
 
 
-	server_listClients(client_sock);
 	close(client_sock);
-	clientlist_remove(&clientlist, newClient->clientID);
+	
 	return 0;
 }
 
