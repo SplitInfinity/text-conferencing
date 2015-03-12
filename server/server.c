@@ -78,8 +78,12 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 		send (client_sock, temp, msg_len+1, 0);
 		n++;
 	}*/
+
+
+
 	server_listClients(client_sock);
 	close(client_sock);
+	clientlist_remove(&clientlist, newClient->clientID);
 	return 0;
 }
 
