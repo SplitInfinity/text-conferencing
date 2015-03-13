@@ -6,7 +6,8 @@
 #define UTILS_H
 
 #define BUFFERLEN 1000
-#define MAX_CLIENT_ID_SIZE 20
+#define MAX_CLIENT_ID_SIZE 30
+#define MAX_CLIENT_PW_SIZE 30
 #define MAX_DATA_SIZE 100
 
 // Macros for packet type
@@ -39,6 +40,11 @@ typedef struct {
 	char data[MAX_DATA_SIZE];
 } Packet;
 
+typedef struct {
+	char clientID[MAX_CLIENT_ID_SIZE];
+	char password[MAX_CLIENT_PW_SIZE];
+} ConfigLine;
+
 /* Returns the given packet as a byte array that can be sent over a socket.
  *
  * @param[in]	packet 	The packet containing all the source data
@@ -57,4 +63,5 @@ unsigned int create_bytearray (Packet* packet, char* buffer);
 
 void extract_packet (Packet* packet, const char* bytearray);
 
+ConfigLine* read_config ();
 #endif
