@@ -13,7 +13,6 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
-#include <math.h>
 
 #include "utils.h"
 
@@ -23,8 +22,10 @@ int socketFd = -1;					// Socket for connection with conferencing server
 char *currentClientID = NULL;
 char *currentSessionID = NULL;
 bool userWantsToQuit = false;
-char buffer[BUFFERLEN];
-unsigned int packetSize;
+char buffer[BUFFERLEN] = {0};
+unsigned int packetSize = 0;
+
+Packet packet;
 
 /* This struct is used to represent each command that the client understands.
  * 		name - the name of the command
@@ -93,20 +94,17 @@ void cmd_login() {
 				return;
 			}
 
-			Packet loginPacket;
-			loginPacket.type = LOGIN;
-			loginPacket.size = strlen (clientID) + strlen (password);
-			snprintf (loginPacket.source, sizeof(loginPacket.source), "%s", clientID);
-			snprintf (loginPacket.data, sizeof(loginPacket.data), "%s,%s", clientID, password);
-			packetSize = create_bytearray (&loginPacket, buffer);
-			//packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:%s,%s", LOGIN, strlen (clientID) + strlen (password) + 1, clientID, clientID, password);
+			memset (&packet, 0, sizeof(packet));
+			packet.type = LOGIN;
+			packet.size = strlen (password);
+			snprintf (packet.source, sizeof(packet.source), "%s", clientID);
+			snprintf (packet.data, sizeof(packet.data), "%s", password);
+			packetSize = create_bytearray (&packet, buffer);
 			send (socketFd, buffer, packetSize, 0);
 			recv (socketFd, buffer, BUFFERLEN, 0);
-
-			extract_packet (&loginPacket, buffer);
+			extract_packet (&packet, buffer);
 			
-			// sscanf (buffer, "%d%*[:]%d%*[:]%[^:\n]%*[:]%[^\n]", &ackPacket.type, &ackPacket.size, ackPacket.source, ackPacket.data);
-			switch (loginPacket.type) {
+			switch (packet.type) {
 				case LO_ACK: {
 					printf ("Logged in successfully.\n");
 
@@ -119,7 +117,7 @@ void cmd_login() {
 				}
 
 				case LO_NAK: {
-					printf ("Login unsuccessful. Reason: %s\n", loginPacket.data);
+					printf ("Login unsuccessful. Reason: %s\n", packet.data);
 					break;
 				}
 			}
@@ -141,7 +139,11 @@ void cmd_logout() {
 		printf("LOGOUT command detected.\n");
 
 		if (socketFd != -1) {
-			packetSize = snprintf (buffer, BUFFERLEN, "%d:%d:%s", EXIT, 0, currentClientID);
+			memset (&packet, 0, sizeof(packet));
+			packet.type = EXIT;
+			packet.size = 0;
+			snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+			packetSize = create_bytearray (&packet, buffer);
 			send (socketFd, buffer, packetSize, 0);
 			free (currentClientID);
 			currentClientID = NULL;
@@ -164,7 +166,12 @@ void cmd_joinsession() {
 	} else {
 		printf("JOIN SESSION command detected.\nSession ID: %s\n", sessionID);
 
-		packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:%s", JOIN, strlen (sessionID), currentClientID, sessionID);
+		memset (&packet, 0, sizeof(packet));
+		packet.type = JOIN;
+		packet.size = strlen(sessionID);
+		snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+		snprintf (packet.data, sizeof(packet.data), "%s", sessionID);
+		packetSize = create_bytearray (&packet, buffer);
 		send (socketFd, buffer, packetSize, 0);
 	}
 	
@@ -181,7 +188,11 @@ void cmd_leavesession() {
 			free(currentSessionID);
 			currentSessionID = NULL;
 
-			packetSize = snprintf (buffer, BUFFERLEN, "%d:%d:%s", LEAVE_SESS, 0, currentClientID);
+			memset (&packet, 0, sizeof(packet));
+			packet.type = LEAVE_SESS;
+			packet.size = 0;
+			snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+			packetSize = create_bytearray (&packet, buffer);
 			send (socketFd, buffer, packetSize, 0);
 		} else {
 			printf ("Cannot leave session - you are not part of any session.\n");
@@ -201,7 +212,12 @@ void cmd_createsession() {
 	} else {
 		printf("CREATE SESSION command detected.\nSession ID: %s\n", sessionID);
 
-		packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:%s", NEW_SESS, strlen (sessionID), currentClientID, sessionID);
+		memset (&packet, 0, sizeof(packet));
+		packet.type = NEW_SESS;
+		packet.size = strlen(sessionID);
+		snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+		snprintf (packet.data, sizeof(packet.data), "%s", sessionID);
+		packetSize = create_bytearray (&packet, buffer);
 		send (socketFd, buffer, packetSize, 0);
 	}
 	
@@ -215,7 +231,11 @@ void cmd_list() {
 	} else {
 		printf("LIST command detected.\n");
 
-		packetSize = snprintf (buffer, BUFFERLEN, "%d:%d:%s", QUERY, 0, currentClientID);
+		memset (&packet, 0, sizeof(packet));
+		packet.type = QUERY;
+		packet.size = 0;
+		snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+		packetSize = create_bytearray (&packet, buffer);
 		send (socketFd, buffer, packetSize, 0);
 	}
 
@@ -316,7 +336,12 @@ void execute_line (char *strippedLine) {
 		if (currentSessionID != NULL) {
 			printf("Sending the following message to everyone in session ID %s:\n%s\n", currentSessionID, strippedLine);
 
-			packetSize = snprintf (buffer, BUFFERLEN, "%d:%zd:%s:<%s>", MESSAGE, strlen (strippedLine) + 2, currentClientID, strippedLine);
+			memset (&packet, 0, sizeof(packet));
+			packet.type = MESSAGE;
+			packet.size = strlen (strippedLine);
+			snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+			snprintf (packet.data, sizeof(packet.data), "%s", strippedLine);
+			packetSize = create_bytearray (&packet, buffer);
 			send (socketFd, buffer, packetSize, 0);
 		} else {
 			printf("Can't send message - you are not part of any session!\n");
@@ -423,8 +448,9 @@ int createReadFdSet (fd_set *set) {
 // Handles the most recent server response contained in the global buffer.
 void handle_server_response () {
 	Packet serverResponse;
-	sscanf (buffer, "%d%*[:]%d%*[:]%[^:\n]%*[:]%[^\n]", &serverResponse.type, &serverResponse.size, serverResponse.source, serverResponse.data);
 	
+	extract_packet (&serverResponse, buffer);
+		
 	switch (serverResponse.type) {
 		case JN_ACK: {
 			printf ("Joined session %s\n.", serverResponse.data);
