@@ -77,7 +77,6 @@ void server_transmit_tcp (int client_sock, int packetType, char * src, char * da
  *
  *
  */
-
  void server_bootstrap (){
  	ConfigLine * confline;
  	while ( (confline = read_config()) != NULL){
@@ -194,18 +193,18 @@ void server_login_client(char * clientID, char * passw, int sock) {
 	Client * client = clientlist_find(&clientlist, clientID);
 	if (client == NULL) {
 		//SEND A NACK
-		server_transmit_tcp(sock, JN_NAK, "SERVER", "CLIENT DOES NOT EXIST");
+		server_transmit_tcp(sock, LO_NAK, "SERVER", "CLIENT DOES NOT EXIST");
 		return;
 	} else if (strcmp(passw, client->password) != 0){
 		//SEND A NACK
-		server_transmit_tcp(sock, JN_NAK, "SERVER", "WRONG PASSWORD");
+		server_transmit_tcp(sock, LO_NAK, "SERVER", "WRONG PASSWORD");
 		return;
 	}
 
 	//Check to see if pass is correct
 
 	client->socket = sock;
-	server_transmit_tcp(client->socket, JN_ACK, "SERVER", client->clientID);
+	server_transmit_tcp(client->socket, LO_ACK, "SERVER", client->clientID);
 
 	//So far so good!
 }
