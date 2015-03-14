@@ -13,7 +13,7 @@ utils.o: utils.h utils.c
 	gcc -Wall -g utils.c -c
 
 bossman: server/server.c
-	gcc -Wall -g -pthread server/server.c server/clientlist.c server/sessionlist.c -o server/server.out
+	gcc -Wall -g -pthread utils.c server/server.c server/clientlist.c server/sessionlist.c -o server/server.out
 
 clean:
 	rm client.out server.out *~

@@ -54,6 +54,23 @@ void server_listClients(int client_sock){
 	}
 }
 
+void server_transmit_tcp (int client_sock, int packetType, char * src, char * data ){
+	//Setup packet
+	Packet sendPack; 
+	sendPack.type = packetType; //JN_ACK
+	sendPack.size = BUFFERLEN;
+	strcpy(sendPack.source, src);
+	strcpy(sendPack.data, data);
+
+	//pack the bytearray
+	char * sendMsg = (char * ) malloc(BUFFERLEN*sizeof(char));
+	int sendMsgSize = create_bytearray(&sendPack, sendMsg);
+
+	send (client_sock, sendMsg, sendMsgSize, 0);
+	free (sendMsg);
+}
+
+
 
 /*
  *	IMPORTANT SERVER FUNCTION
@@ -61,55 +78,81 @@ void server_listClients(int client_sock){
  *
  */
 
+ void server_bootstrap (){
+ 	ConfigLine * confline;
+ 	while ( (confline = read_config()) != NULL){
+ 		Client * newClient = create_client(confline->clientID, confline->password, "", "",  1, -1);
+ 		clientlist_insert_front(&clientlist, newClient);
+ 	} 
+ }
+
 
 
 int sever_list_sessions(int client_sock){
 	/* Code for listing */
-	if (sessionlist == NULL)
-		return SERVER_NO_SESSIONS;
-	char msg[] = "List of all sessions on the server:\n";
-	int msg_len = strlen(msg);
-	send (client_sock, msg, msg_len, 0);
-
-	Session * traverse = sessionlist;
-	while(traverse != NULL){
-		msg_len = strlen(traverse->sessionID);
-		send (client_sock, traverse->sessionID, msg_len, 0);
-		send(client_sock,"\n", 1,0);
-		traverse = traverse->nxt;
+	char msg[BUFFERLEN];
+	sprintf (msg ,"Users:");
+	Client * client_traverse = clientlist;
+	while (client_traverse != NULL && client_traverse->socket != -1){
+		strcat(msg, client_traverse->clientID);
+		strcat(msg, ",");
+		client_traverse = client_traverse->nxt;
 	}
+	strcat(msg, "\n");
+	Session * session_traverse = sessionlist;
+	while(session_traverse != NULL){
+		strcat(msg, session_traverse->sessionID);
+		strcat(msg, ",");
+		session_traverse = session_traverse->nxt;
+	}
+
+	//Setup packet
+	Packet sendPack; 
+	sendPack.type = QU_ACK;
+	sendPack.size = BUFFERLEN;
+	strcpy(sendPack.source, "SERVER");
+	strcpy(sendPack.data, msg);
+
+	//pack the bytearray
+	char * sendMsg = (char * ) malloc(BUFFERLEN*sizeof(char));
+	int sendMsgSize = create_bytearray(&sendPack, sendMsg);
+
+
+	send (client_sock, sendMsg, sendMsgSize, 0);
+	free (sendMsg);
+
+	printf("sent this: %s\n", sendMsg);
 	return SERVER_SUCCESS;
 }
 
 
-int server_broadcast (char * message, char * messageSenderID, char * sessionID){
+void server_broadcast (char * message, char * clientID){
 	/* Code to broadcast messages */
-	if (message == NULL)
-		return SERVER_PARAM_ERROR;
-	if (sessionID == NULL)
-		return BAD_SESSION;
+	if (message == NULL || clientID == NULL)
+		return;
 
-	Session * queriedsession = sessionlist_find(&sessionlist, sessionID);
+	Client * the_client = clientlist_find(&clientlist, clientID);
+
+	Session * queriedsession = sessionlist_find(&sessionlist, the_client->currentSessionID);
 	if (queriedsession == NULL)
-		return SESSION_NOT_EXIST;
+		return;
 
 	if (queriedsession->clientsInSession == NULL)
-		return SERVER_BROADCAST_ERROR;
+		return;
 
 	Client * sessionClient = *queriedsession->clientsInSession;
 
 	while(sessionClient != NULL){
 		//We dont want to send to ourself
-		if (strcmp(messageSenderID, sessionClient->clientID) !=0){
+		if (strcmp(the_client->clientID, sessionClient->clientID) !=0){
 			int msg_len = strlen(message);
 			send (sessionClient->socket, message, msg_len, 0);
 			send (sessionClient->socket,"\n", 1,0);
 		}
 		sessionClient = sessionClient->nxt;
 	}
-
-	return SERVER_SUCCESS;
 }
+
 
 int server_add_new_session(char * sessionID){
 	/* Code to add session */
@@ -136,17 +179,42 @@ int server_client_join_session(Client * newClient, char * sessionID){
 	return SERVER_SUCCESS;
 }
 
-int server_accept_client(Client * newClient) {
+int server_client_leave_session(Client * newClient, char * sessionID) {
+
+	return 0;
+}
+
+//LATER ON ADD IPADDRESS AND PORT SAVING
+void server_login_client(char * clientID, char * passw, int sock) {
 	/* Check to determine if client is kosher */
-	if (newClient == NULL)
-		return -1; 
-	if (newClient->clientID == NULL)
-		return -1;
-	if (clientlist_find (&clientlist, newClient->clientID) == NULL)
-		return -1;
+	(void) passw;
+
+	if (clientID == NULL || passw == NULL)
+		return; 
+	Client * client = clientlist_find(&clientlist, clientID);
+	if (client == NULL) {
+		//SEND A NACK
+		server_transmit_tcp(sock, JN_NAK, "SERVER", "CLIENT DOES NOT EXIST");
+		return;
+	} else if (strcmp(passw, client->password) != 0){
+		//SEND A NACK
+		server_transmit_tcp(sock, JN_NAK, "SERVER", "WRONG PASSWORD");
+		return;
+	}
+
+	//Check to see if pass is correct
+
+	client->socket = sock;
+	server_transmit_tcp(client->socket, JN_ACK, "SERVER", client->clientID);
 
 	//So far so good!
-	return SERVER_SUCCESS;
+}
+
+void server_client_exit(char * clientID, int client_sock) {
+	clientlist_remove(&clientlist, clientID);
+	close(client_sock);
+	printf("%s has disconnected\n", clientID);
+	pthread_exit(NULL);
 }
 
 /*
@@ -160,37 +228,49 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 	while ((bytes_received = recv (client_sock, buffer, BUFFERLEN, 0)) ) {
 		buffer[bytes_received] = '\0';
 		printf("INCOMING PACK-ET: %s\n", buffer);
-		send (client_sock, buffer, bytes_received, 0);
-
+		//send (client_sock, buffer, bytes_received, 0);
+		/*
 		char * temp = (char*)malloc(10000*sizeof(char));
 		sprintf(temp, "Client %d", client_sock);
 		Client * newClient = create_client(temp, "", "", "",  1, client_sock);
 		clientlist_insert_front(&clientlist, newClient);
+		*/
 		//server_listClients(client_sock);
+		Packet incomingPack; 
+		extract_packet(&incomingPack, buffer);
+
+		switch(incomingPack.type) {
+			case LOGIN:
+				server_login_client(incomingPack.source,incomingPack.data,client_sock);
+				break;
+			case EXIT:
+				server_client_exit(incomingPack.source, client_sock);
+				break;
+			/*case JOIN:
+			//	int status = server_client_join_session();
+
+				break;
+			case NEW_SESS:
+				//int status = server_add_new_session();
+
+				break;
+			case LEAVE_SESS:
+				//int status = server_client_leave_session();
+				
+				break;*/
+			case MESSAGE:
+				server_broadcast(incomingPack.data, incomingPack.source);
+				break;
+			case QUERY:
+				sever_list_sessions(client_sock);
+				break;
+		//	default:
+
+		}
+
+
+
 	}
-
-
-/*
-	int msg_len = strlen("Hi from Arash");
-	send (client_sock, "Hi from Arash\n", msg_len+1, 0);
-	n++;
-	char * temp = (char*)malloc(10000*sizeof(char));
-	sprintf(temp, "Client %d", n);
-	free(temp);
-	 */
-
-	/*int n = 0;
-	while(1 ){
-		waitFor(1);
-		
-		char * temp = (char*)malloc(10000*sizeof(char));
-		sprintf(temp, "ping!%d\n",n);
-		msg_len = strlen(temp);
-		send (client_sock, temp, msg_len+1, 0);
-		n++;
-	}*/
-
-
 
 	close(client_sock);
 	
@@ -263,6 +343,9 @@ int main (int argc, char ** arv){
 	pthread_t connection;
 	sockaddr_size = sizeof(connector_addr);
 	
+	//bootstrap the clients
+	server_bootstrap();
+
 	while (1) {
 		new_sockfd = accept(sockfd, (struct sockaddr *) &connector_addr, &sockaddr_size);
 
