@@ -6,7 +6,7 @@
 
 typedef struct session {
 	char * sessionID;
-	Client ** clientsInSession;
+	ClientNode * clientsInSession;
 	struct session * nxt;
 } Session;
 
@@ -20,6 +20,7 @@ Session * sessionlist_find(Session ** session_list_head, char * query_sessionID)
 
 Session * sessionlist_addclient(Session ** session_list_head, char * sessionID, Client * new_client);
 
+void sessionlist_removeclient (Session **session_list_head, char * sessionID, char * query_clientID);
 
 
 #endif

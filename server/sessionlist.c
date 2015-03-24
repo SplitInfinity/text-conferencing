@@ -55,7 +55,7 @@ Session * sessionlist_find(Session ** session_list_head, char * query_sessionID)
 		return NULL;
 
 	Session * traverser = *session_list_head;
-	while (traverser->nxt != NULL){
+	while (traverser != NULL){
 		if (strcmp(traverser->sessionID, query_sessionID) == 0)
 			return traverser;
 		traverser = traverser->nxt;
@@ -66,17 +66,17 @@ Session * sessionlist_find(Session ** session_list_head, char * query_sessionID)
 Client * sessionlist_find_client (Session * specific_session, Client * queryClient){
 	if (specific_session == NULL || queryClient == NULL)
 		return NULL;
-	Client ** sessionclientlist = specific_session->clientsInSession;
-	if (sessionclientlist == NULL)
+
+	if (specific_session->clientsInSession == NULL)
 		return NULL;
 
-	return clientlist_find(sessionclientlist, queryClient->clientID);
+	return clientlist_find(&(specific_session->clientsInSession), queryClient->clientID);
 }
 
 
 
 Session * sessionlist_addclient(Session ** session_list_head, char * sessionID, Client * new_client){
-	if (session_list_head || sessionID == NULL || new_client == NULL)
+	if (session_list_head == NULL || sessionID == NULL || new_client == NULL)
 		return NULL;
 
 	Session * specific_session = sessionlist_find(session_list_head, sessionID);
@@ -84,7 +84,19 @@ Session * sessionlist_addclient(Session ** session_list_head, char * sessionID, 
 	if (specific_session == NULL)
 		return NULL;
 
-	clientlist_insert_front(specific_session->clientsInSession,new_client);
+	clientlist_insert_front(&(specific_session->clientsInSession),new_client);
 
 	return specific_session;
+}
+
+void sessionlist_removeclient (Session **session_list_head, char * sessionID, char * query_clientID){
+	if (session_list_head == NULL || sessionID == NULL || query_clientID == NULL)
+		return;
+
+	Session * specific_session = sessionlist_find(session_list_head, sessionID);
+
+	if (specific_session == NULL)
+		return;
+
+	clientlist_remove( &(specific_session->clientsInSession), query_clientID);
 }

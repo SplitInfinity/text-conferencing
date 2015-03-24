@@ -18,7 +18,7 @@
 
 
 
-static Client * clientlist = NULL;
+static ClientNode * clientlist = NULL;
 static Session * sessionlist = NULL; 
 
 
@@ -36,7 +36,7 @@ void waitFor (unsigned int secs) {
     while (time(0) < retTime);    // Loop until it arrives.
 }
 
-
+/*
 void server_listClients(int client_sock){
 	if (clientlist == NULL)
 		return;
@@ -52,7 +52,7 @@ void server_listClients(int client_sock){
 		send(client_sock,"\n", 1,0);
 		traverse = traverse->nxt;
 	}
-}
+}*/
 
 void server_transmit_tcp (int client_sock, int packetType, char * src, char * data ){
 	//Setup packet
@@ -87,17 +87,20 @@ void server_transmit_tcp (int client_sock, int packetType, char * src, char * da
 
 
 
-int sever_list_sessions(int client_sock){
+void sever_list_sessions(int sock){
 	/* Code for listing */
 	char msg[BUFFERLEN];
-	sprintf (msg ,"Users:");
-	Client * client_traverse = clientlist;
-	while (client_traverse != NULL && client_traverse->socket != -1){
-		strcat(msg, client_traverse->clientID);
-		strcat(msg, ",");
+	sprintf (msg ,"Users: ");
+	ClientNode * client_traverse = clientlist;
+	while (client_traverse != NULL ){
+		if (client_traverse->cn_client->socket != -1){
+			strcat(msg, client_traverse->cn_client->clientID);
+			strcat(msg, ",");
+		}
 		client_traverse = client_traverse->nxt;
 	}
-	strcat(msg, "\n");
+	//strcat(msg, "\n");
+	strcat(msg, "Sessions: ");
 	Session * session_traverse = sessionlist;
 	while(session_traverse != NULL){
 		strcat(msg, session_traverse->sessionID);
@@ -105,23 +108,8 @@ int sever_list_sessions(int client_sock){
 		session_traverse = session_traverse->nxt;
 	}
 
-	//Setup packet
-	Packet sendPack; 
-	sendPack.type = QU_ACK;
-	sendPack.size = BUFFERLEN;
-	strcpy(sendPack.source, "SERVER");
-	strcpy(sendPack.data, msg);
 
-	//pack the bytearray
-	char * sendMsg = (char * ) malloc(BUFFERLEN*sizeof(char));
-	int sendMsgSize = create_bytearray(&sendPack, sendMsg);
-
-
-	send (client_sock, sendMsg, sendMsgSize, 0);
-	free (sendMsg);
-
-	printf("sent this: %s\n", sendMsg);
-	return SERVER_SUCCESS;
+	server_transmit_tcp(sock, QU_ACK, "SERVER", msg);
 }
 
 
@@ -131,56 +119,79 @@ void server_broadcast (char * message, char * clientID){
 		return;
 
 	Client * the_client = clientlist_find(&clientlist, clientID);
+	if (the_client == NULL)
+		return;
 
 	Session * queriedsession = sessionlist_find(&sessionlist, the_client->currentSessionID);
-	if (queriedsession == NULL)
+	if (queriedsession == NULL || queriedsession->clientsInSession == NULL)
 		return;
 
-	if (queriedsession->clientsInSession == NULL)
-		return;
-
-	Client * sessionClient = *queriedsession->clientsInSession;
+	ClientNode * sessionClient = queriedsession->clientsInSession;
 
 	while(sessionClient != NULL){
 		//We dont want to send to ourself
-		if (strcmp(the_client->clientID, sessionClient->clientID) !=0){
+		if (strcmp(the_client->clientID, sessionClient->cn_client->clientID) !=0){
 			int msg_len = strlen(message);
-			send (sessionClient->socket, message, msg_len, 0);
-			send (sessionClient->socket,"\n", 1,0);
+			send (sessionClient->cn_client->socket, message, msg_len, 0);
+			send (sessionClient->cn_client->socket,"\n", 1,0);
 		}
 		sessionClient = sessionClient->nxt;
 	}
 }
 
 
-int server_add_new_session(char * sessionID){
+void server_add_new_session( char * sessionID, int sock){
 	/* Code to add session */
+	if (sessionID == NULL || sock < 0)
+		return;
+
 	if (sessionlist_find(&sessionlist, sessionID) != NULL)
-		return SESSION_EXISTS;
+		return;
+
 	Session * newSession = create_session(sessionID);
 	if (newSession == NULL)
-		return BAD_SESSION;
+		return;
+
 	sessionlist_insert_front(&sessionlist, newSession);
-	return SERVER_SUCCESS;
+
+	server_transmit_tcp(sock, NS_ACK, "SERVER", newSession->sessionID);
 }
 
-int server_client_join_session(Client * newClient, char * sessionID){
+
+
+void server_client_join_session(char * clientID, char * sessionID, int sock){
 	/* Code to add session */
-	if (newClient == NULL)
-		return BAD_CLIENT;
-	if (sessionID == NULL)
-		return BAD_SESSION;
+	if (clientID == NULL || sessionID == NULL || sock < 0)
+		return;
 
-	if (sessionlist_find(&sessionlist, sessionID) == NULL)
-		return SESSION_NOT_EXIST;
-
-	sessionlist_addclient(&sessionlist,sessionID, newClient);
-	return SERVER_SUCCESS;
+	if (sessionlist_find(&sessionlist, sessionID) == NULL) {
+		server_transmit_tcp(sock, JN_NAK, "SERVER", "This Session Does Not Exist");
+		return;
+	}
+	Client * client = clientlist_find(&clientlist, clientID);
+	if (strcmp(client->currentSessionID, "") != 0) {
+		server_transmit_tcp(sock, JN_NAK, "SERVER", "Please Exit Current Session Before Joining New Session");
+		return;
+	}
+	sessionlist_addclient(&sessionlist,sessionID, client);
+	strcpy(client->currentSessionID, sessionID);
+	server_transmit_tcp(sock, JN_ACK, "SERVER", sessionID);
 }
 
-int server_client_leave_session(Client * newClient, char * sessionID) {
+void server_client_leave_session(char * clientID, int sock) {
+	if (clientID == NULL || sock < 0)
+		return;
+	Client * client = clientlist_find(&clientlist, clientID);
+	if (client == NULL)
+		return;
 
-	return 0;
+	Session * session = sessionlist_find(&sessionlist, client->currentSessionID);
+	if (session == NULL)
+		return;
+
+	clientlist_remove(&(session->clientsInSession), client->clientID);
+	strcpy(client->currentSessionID, "");
+
 }
 
 //LATER ON ADD IPADDRESS AND PORT SAVING
@@ -245,18 +256,15 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 			case EXIT:
 				server_client_exit(incomingPack.source, client_sock);
 				break;
-			/*case JOIN:
-			//	int status = server_client_join_session();
-
+			case JOIN:
+				server_client_join_session(incomingPack.source, incomingPack.data, client_sock);
 				break;
 			case NEW_SESS:
-				//int status = server_add_new_session();
-
+				server_add_new_session(incomingPack.data, client_sock);
 				break;
 			case LEAVE_SESS:
-				//int status = server_client_leave_session();
-				
-				break;*/
+				server_client_leave_session(incomingPack.source, client_sock);
+				break;
 			case MESSAGE:
 				server_broadcast(incomingPack.data, incomingPack.source);
 				break;

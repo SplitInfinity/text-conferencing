@@ -22,44 +22,41 @@ Client * create_client (char* clientID, char* password, char* currentSessionID, 
 	strcpy(newClient->ipAddress, currentSessionID);
 	newClient->port = port;
 	newClient->socket = socket;
-	newClient->nxt = NULL;
 
 	return 	newClient;
 }
 
 
-void clientlist_insert_front (Client ** client_list_head, Client* new_client){
-	if (client_list_head == NULL)
+void clientlist_insert_front (ClientNode ** client_list_head, Client* new_client){
+	if (client_list_head == NULL || new_client == NULL)
 		return;
 
-	Client* tmp = (*client_list_head);
+	ClientNode * tmp = (ClientNode*) malloc(sizeof(ClientNode));
+	tmp->cn_client = new_client;
+	tmp->nxt = (*client_list_head);
 
+	(*client_list_head) = tmp;
 
-	//implement primative
-	new_client->nxt = tmp;
-
-	*client_list_head =  new_client;
-	//implement primative
 }
 
 
-void clientlist_remove (Client ** client_list_head, char* query_clientID){
+void clientlist_remove (ClientNode ** client_list_head, char* query_clientID){
 	if (client_list_head == NULL || *client_list_head == NULL)
 		return;
 
-	Client * prev = *client_list_head;
+	ClientNode * prev = *client_list_head;
 
 	//First one is the one we need to delete
-	if (strcmp(prev->clientID, query_clientID) == 0){
+	if (strcmp(prev->cn_client->clientID, query_clientID) == 0){
 		*client_list_head = prev->nxt;
 		free(prev);
 		return;
 	}
 
-	Client * curr = prev->nxt;
+	ClientNode * curr = prev->nxt;
 
 	while (curr != NULL){
-		if (strcmp(curr->clientID, query_clientID) == 0){
+		if (strcmp(curr->cn_client->clientID, query_clientID) == 0){
 			prev->nxt = curr->nxt;
 			free(curr);
 			return;
@@ -74,19 +71,16 @@ void clientlist_remove (Client ** client_list_head, char* query_clientID){
  *	Find the client based on a given clientID
  *
  */
-Client * clientlist_find (Client ** client_list_head, char* query_clientID){
+Client * clientlist_find (ClientNode ** client_list_head, char* query_clientID){
 	if (client_list_head == NULL || *client_list_head == NULL)
 		return NULL;
 
-	Client * traverser = *client_list_head;
+	ClientNode * traverser = *client_list_head;
 
-	//I dont think this is necissary!!! (delete)
-	if (strcmp(traverser->clientID, query_clientID) == 0)
-		return traverser;
 
-	while (traverser->nxt !=NULL) {
-		if (strcmp(traverser->clientID, query_clientID) == 0)
-			return traverser;
+	while (traverser !=NULL) {
+		if (strcmp(traverser->cn_client->clientID, query_clientID) == 0)
+			return traverser->cn_client;
 		traverser = traverser->nxt;
 	}
 	return NULL;	
