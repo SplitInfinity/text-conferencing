@@ -95,16 +95,18 @@ void sever_list_sessions(int sock){
 	while (client_traverse != NULL ){
 		if (client_traverse->cn_client->socket != -1){
 			strcat(msg, client_traverse->cn_client->clientID);
-			strcat(msg, ",");
+			if (client_traverse->nxt != NULL)
+				strcat(msg, ",");
 		}
 		client_traverse = client_traverse->nxt;
 	}
 	//strcat(msg, "\n");
-	strcat(msg, "Sessions: ");
+	strcat(msg, " Sessions: ");
 	Session * session_traverse = sessionlist;
 	while(session_traverse != NULL){
 		strcat(msg, session_traverse->sessionID);
-		strcat(msg, ",");
+		if (session_traverse->nxt != NULL)
+			strcat(msg, ",");
 		session_traverse = session_traverse->nxt;
 	}
 
@@ -221,7 +223,8 @@ void server_login_client(char * clientID, char * passw, int sock) {
 }
 
 void server_client_exit(char * clientID, int client_sock) {
-	clientlist_remove(&clientlist, clientID);
+	Client * query_client = clientlist_find(&clientlist, clientID);
+	client_invalidate(query_client);
 	close(client_sock);
 	printf("%s has disconnected\n", clientID);
 	pthread_exit(NULL);

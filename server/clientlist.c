@@ -67,6 +67,16 @@ void clientlist_remove (ClientNode ** client_list_head, char* query_clientID){
 }
 
 
+void client_invalidate(Client * client) {
+	strcpy(client->currentSessionID, "");
+	strcpy(client->ipAddress, "");
+	client->socket = -1;
+	client->port = -1;
+
+}
+
+
+
 /*
  *	Find the client based on a given clientID
  *

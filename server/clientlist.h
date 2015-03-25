@@ -19,6 +19,8 @@ typedef struct client_node {
 
 Client * create_client (char* clientID, char* password, char* currentSessionID, char* ipAddress, unsigned int port, int socket);
 
+void client_invalidate(Client * client);
+
 void clientlist_insert_front (ClientNode ** client_list_head, Client* new_client);
 
 void clientlist_remove (ClientNode ** client_list_head, char* query_clientID);
