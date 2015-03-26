@@ -78,6 +78,8 @@ void server_transmit_tcp (int client_sock, int packetType, char * src, char * da
  *
  */
  void server_bootstrap (){
+ 	clientlist_init();
+ 	sessionlist_init();
  	ConfigLine * confline;
  	while ( (confline = read_config()) != NULL){
  		Client * newClient = create_client(confline->clientID, confline->password, "", "",  1, -1);
@@ -115,14 +117,17 @@ void sever_list_sessions(int sock){
 }
 
 
-void server_broadcast (char * message, char * clientID){
+void server_broadcast (char * clientID , char * message){
 	/* Code to broadcast messages */
 	if (message == NULL || clientID == NULL)
 		return;
 
 	Client * the_client = clientlist_find(&clientlist, clientID);
+
 	if (the_client == NULL)
 		return;
+
+
 
 	Session * queriedsession = sessionlist_find(&sessionlist, the_client->currentSessionID);
 	if (queriedsession == NULL || queriedsession->clientsInSession == NULL)
@@ -142,12 +147,19 @@ void server_broadcast (char * message, char * clientID){
 }
 
 
-void server_add_new_session( char * sessionID, int sock){
+void server_add_new_session(char * clientID, char * sessionID, int sock){
 	/* Code to add session */
 	if (sessionID == NULL || sock < 0)
 		return;
 
 	if (sessionlist_find(&sessionlist, sessionID) != NULL)
+		return;
+
+	Client * client = clientlist_find(&clientlist, clientID);
+	if (client == NULL)
+		return;
+
+	if (client->socket == -1)
 		return;
 
 	Session * newSession = create_session(sessionID);
@@ -166,11 +178,23 @@ void server_client_join_session(char * clientID, char * sessionID, int sock){
 	if (clientID == NULL || sessionID == NULL || sock < 0)
 		return;
 
+	Client * client = clientlist_find(&clientlist, clientID);
+	if (client == NULL) {
+		server_transmit_tcp(sock, JN_NAK, "SERVER", "This client could not be found");
+		return;
+	}
+	if (client->socket == -1){
+		server_transmit_tcp(sock, JN_NAK, "SERVER", "You Have Not Been AUTHENTICATED, Please Login");
+		return;
+	}
+
+
 	if (sessionlist_find(&sessionlist, sessionID) == NULL) {
 		server_transmit_tcp(sock, JN_NAK, "SERVER", "This Session Does Not Exist");
 		return;
 	}
-	Client * client = clientlist_find(&clientlist, clientID);
+
+
 	if (strcmp(client->currentSessionID, "") != 0) {
 		server_transmit_tcp(sock, JN_NAK, "SERVER", "Please Exit Current Session Before Joining New Session");
 		return;
@@ -196,6 +220,17 @@ void server_client_leave_session(char * clientID, int sock) {
 
 }
 
+void server_client_exit(char * clientID, int client_sock) {
+	if (clientID == NULL)
+		return;
+	Client * query_client = clientlist_find(&clientlist, clientID);
+	client_invalidate(query_client);
+	close(client_sock);
+	printf("%s has disconnected\n", clientID);
+	pthread_exit(NULL);
+}
+
+
 //LATER ON ADD IPADDRESS AND PORT SAVING
 void server_login_client(char * clientID, char * passw, int sock) {
 	/* Check to determine if client is kosher */
@@ -207,10 +242,17 @@ void server_login_client(char * clientID, char * passw, int sock) {
 	if (client == NULL) {
 		//SEND A NACK
 		server_transmit_tcp(sock, LO_NAK, "SERVER", "CLIENT DOES NOT EXIST");
+		server_client_exit (clientID, sock);
+		return;
+	} else if (client->socket != -1) {
+		//SEND A NACK
+		server_transmit_tcp(sock, LO_NAK, "SERVER", "YOU ARE ALREADY LOGGED IN");
+		server_client_exit (clientID, sock);
 		return;
 	} else if (strcmp(passw, client->password) != 0){
 		//SEND A NACK
 		server_transmit_tcp(sock, LO_NAK, "SERVER", "WRONG PASSWORD");
+		server_client_exit (clientID, sock);
 		return;
 	}
 
@@ -220,14 +262,6 @@ void server_login_client(char * clientID, char * passw, int sock) {
 	server_transmit_tcp(client->socket, LO_ACK, "SERVER", client->clientID);
 
 	//So far so good!
-}
-
-void server_client_exit(char * clientID, int client_sock) {
-	Client * query_client = clientlist_find(&clientlist, clientID);
-	client_invalidate(query_client);
-	close(client_sock);
-	printf("%s has disconnected\n", clientID);
-	pthread_exit(NULL);
 }
 
 /*
@@ -263,13 +297,13 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 				server_client_join_session(incomingPack.source, incomingPack.data, client_sock);
 				break;
 			case NEW_SESS:
-				server_add_new_session(incomingPack.data, client_sock);
+				server_add_new_session(incomingPack.source, incomingPack.data, client_sock);
 				break;
 			case LEAVE_SESS:
 				server_client_leave_session(incomingPack.source, client_sock);
 				break;
 			case MESSAGE:
-				server_broadcast(incomingPack.data, incomingPack.source);
+				server_broadcast(incomingPack.source, incomingPack.data);
 				break;
 			case QUERY:
 				sever_list_sessions(client_sock);
@@ -363,5 +397,6 @@ int main (int argc, char ** arv){
 
 
 	}
-
+	clientlist_termin();
+	sessionlist_termin();
 }

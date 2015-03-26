@@ -27,7 +27,8 @@ void clientlist_remove (ClientNode ** client_list_head, char* query_clientID);
 
 Client * clientlist_find (ClientNode ** client_list_head, char* query_clientID);
 
+void clientlist_init();
 
-
+void clientlist_termin();
 
 #endif

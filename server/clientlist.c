@@ -1,11 +1,15 @@
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 #include "clientlist.h"
 
 #define MAX_CLIENTID_LEN 50
 #define MAX_PASSWORD_LEN 50
 #define MAX_CURRENTSESSIONID_LEN 50
 #define MAX_IPADDRESS_LEN 50
+
+
+static pthread_mutex_t lock;
 
 
 
@@ -31,12 +35,14 @@ void clientlist_insert_front (ClientNode ** client_list_head, Client* new_client
 	if (client_list_head == NULL || new_client == NULL)
 		return;
 
+	pthread_mutex_lock(&lock);
 	ClientNode * tmp = (ClientNode*) malloc(sizeof(ClientNode));
 	tmp->cn_client = new_client;
 	tmp->nxt = (*client_list_head);
 
 	(*client_list_head) = tmp;
 
+	pthread_mutex_unlock(&lock);
 }
 
 
@@ -44,12 +50,13 @@ void clientlist_remove (ClientNode ** client_list_head, char* query_clientID){
 	if (client_list_head == NULL || *client_list_head == NULL)
 		return;
 
+	pthread_mutex_lock(&lock);
 	ClientNode * prev = *client_list_head;
-
 	//First one is the one we need to delete
 	if (strcmp(prev->cn_client->clientID, query_clientID) == 0){
 		*client_list_head = prev->nxt;
 		free(prev);
+		pthread_mutex_unlock(&lock);
 		return;
 	}
 
@@ -59,20 +66,23 @@ void clientlist_remove (ClientNode ** client_list_head, char* query_clientID){
 		if (strcmp(curr->cn_client->clientID, query_clientID) == 0){
 			prev->nxt = curr->nxt;
 			free(curr);
+			pthread_mutex_unlock(&lock);
 			return;
 		}
 		prev = curr;
 		curr = curr->nxt;
 	}
+	pthread_mutex_unlock(&lock);
 }
 
 
 void client_invalidate(Client * client) {
+	if (client == NULL)
+		return;
 	strcpy(client->currentSessionID, "");
 	strcpy(client->ipAddress, "");
 	client->socket = -1;
 	client->port = -1;
-
 }
 
 
@@ -96,3 +106,11 @@ Client * clientlist_find (ClientNode ** client_list_head, char* query_clientID){
 	return NULL;	
 }
 
+
+void clientlist_init(){
+	pthread_mutex_init(&lock, NULL);
+}
+
+void clientlist_termin(){
+	pthread_mutex_destroy(&lock);
+}

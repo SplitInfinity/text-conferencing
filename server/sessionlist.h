@@ -22,5 +22,8 @@ Session * sessionlist_addclient(Session ** session_list_head, char * sessionID, 
 
 void sessionlist_removeclient (Session **session_list_head, char * sessionID, char * query_clientID);
 
+void sessionlist_init ();
+
+void sessionlist_termin ();
 
 #endif

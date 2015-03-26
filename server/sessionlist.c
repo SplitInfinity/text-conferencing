@@ -1,10 +1,11 @@
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 #include "sessionlist.h"
 
 #define MAX_SESSIONID_LEN 50
 
-
+static pthread_mutex_t lock;
 
 Session * create_session(char * sessionID){
 	//Do i need to return NULL on failure?
@@ -21,20 +22,23 @@ void sessionlist_insert_front(Session ** session_list_head, Session * new_sessio
 	if (session_list_head == NULL || new_session == NULL)
 		return;
 
+	pthread_mutex_lock(&lock);
 	new_session->nxt = *session_list_head;
-
 	*session_list_head = new_session;
+	pthread_mutex_unlock(&lock);
 }
 
 void sessionlist_remove(Session ** session_list_head, char * query_sessionID){
 	if (session_list_head == NULL || *session_list_head == NULL || query_sessionID == NULL)
 		return;
 
+	pthread_mutex_lock(&lock);
 	Session * prev = *session_list_head;
 
 	if (strcmp(prev->sessionID, query_sessionID) == 0){
 		*session_list_head = prev->nxt;
 		free (prev);
+		pthread_mutex_unlock(&lock);
 		return;//Assuming that only a unqique sessionID is available
 	}
 
@@ -43,11 +47,13 @@ void sessionlist_remove(Session ** session_list_head, char * query_sessionID){
 		if (strcmp(curr->sessionID, query_sessionID) == 0){
 			prev->nxt = curr->nxt;
 			free (curr);
+			pthread_mutex_unlock(&lock);
 			return; //Assuming that only a unique sessioniD is available
 		}
 		prev = curr;
 		curr = curr->nxt;
 	}
+	pthread_mutex_unlock(&lock);
 }
 
 Session * sessionlist_find(Session ** session_list_head, char * query_sessionID){
@@ -79,13 +85,17 @@ Session * sessionlist_addclient(Session ** session_list_head, char * sessionID, 
 	if (session_list_head == NULL || sessionID == NULL || new_client == NULL)
 		return NULL;
 
+	pthread_mutex_lock(&lock);
 	Session * specific_session = sessionlist_find(session_list_head, sessionID);
 
-	if (specific_session == NULL)
+	if (specific_session == NULL){
+		pthread_mutex_unlock(&lock);
 		return NULL;
+	}
 
 	clientlist_insert_front(&(specific_session->clientsInSession),new_client);
 
+	pthread_mutex_unlock(&lock);
 	return specific_session;
 }
 
@@ -93,10 +103,23 @@ void sessionlist_removeclient (Session **session_list_head, char * sessionID, ch
 	if (session_list_head == NULL || sessionID == NULL || query_clientID == NULL)
 		return;
 
+	pthread_mutex_lock(&lock);
 	Session * specific_session = sessionlist_find(session_list_head, sessionID);
 
-	if (specific_session == NULL)
+	if (specific_session == NULL) {
+		pthread_mutex_unlock(&lock);
 		return;
+	}
+		
 
 	clientlist_remove( &(specific_session->clientsInSession), query_clientID);
+	pthread_mutex_unlock(&lock);
+}
+
+void sessionlist_init() {
+	pthread_mutex_init(&lock, NULL);
+}
+
+void sessionlist_termin(){
+	pthread_mutex_destroy(&lock);
 }
