@@ -136,7 +136,7 @@ void cmd_logout() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /logout\n");
 	} else {
-		// printf("LOGOUT command detected.\n");
+		printf("Logged out of the server.\n");
 
 		if (socketFd != -1) {
 			memset (&packet, 0, sizeof(packet));
@@ -185,6 +185,7 @@ void cmd_leavesession() {
 	} else {
 		// printf("LEAVE SESSION command detected.\n");
 		if (currentSessionID != NULL) {
+			printf ("Left session %s.\n", currentSessionID);
 			free(currentSessionID);
 			currentSessionID = NULL;
 
@@ -194,6 +195,7 @@ void cmd_leavesession() {
 			snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
 			packetSize = create_bytearray (&packet, buffer);
 			send (socketFd, buffer, packetSize, 0);
+			printf ("Left")
 		} else {
 			printf ("Cannot leave session - you are not part of any session.\n");
 		}
@@ -334,7 +336,7 @@ void execute_line (char *strippedLine) {
 		}
 	} else {
 		if (currentSessionID != NULL) {
-			printf("Sending the following message to everyone in session ID %s:\n%s\n", currentSessionID, strippedLine);
+			printf("%s: %s\n", currentClientID, strippedLine);
 
 			memset (&packet, 0, sizeof(packet));
 			packet.type = MESSAGE;
