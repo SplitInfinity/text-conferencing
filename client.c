@@ -21,6 +21,8 @@
 int socketFd = -1;					// Socket for connection with conferencing server
 char *currentClientID = NULL;
 char *currentSessionID = NULL;
+char *currentServerIP = NULL;
+char *currentServerPort = NULL;
 bool userWantsToQuit = false;
 char buffer[BUFFERLEN] = {0};
 unsigned int packetSize = 0;
@@ -74,7 +76,20 @@ void cmd_login() {
 	if (!clientID || !password || !serverIPAddress || !serverPort || strtok (NULL, " ") != NULL) {
 		printf ("Usage: /login <client ID> <password> <server IP address> <server port>\n");
 	} else {
-		// printf("LOGIN command detected.\nClientID: %s, Password: %s, Server IP: %s, Server Port: %s\n", clientID, password, serverIPAddress, serverPort);
+		if (currentClientID != NULL) {
+			memset (&packet, 0, sizeof(packet));
+			packet.type = EXIT;
+			packet.size = 0;
+			snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+			packetSize = create_bytearray (&packet, buffer);
+			send (socketFd, buffer, packetSize, 0);
+			free (currentClientID);
+			currentClientID = NULL;
+			currentServerIP = NULL;
+			currentServerPort = NULL;
+			close (socketFd);
+			socketFd = -1;
+		}
 
 		struct addrinfo hints, *serverInfo = NULL;
 
@@ -106,18 +121,16 @@ void cmd_login() {
 			
 			switch (packet.type) {
 				case LO_ACK: {
-					printf ("Logged in successfully.\n");
-
-					if (currentClientID != NULL) {
-						free (currentClientID);
-					}
-
+					printf ("Logged in successfully to chat server at %s on port %s.\n", serverIPAddress, serverPort);
 					currentClientID = strdup (clientID);
+					currentServerIP = strdup (serverIPAddress);
+					currentServerPort = strdup (serverPort);
 					break;
 				}
 
 				case LO_NAK: {
 					printf ("Login unsuccessful. Reason: %s\n", packet.data);
+					socketFd = -1;
 					break;
 				}
 			}
@@ -136,9 +149,8 @@ void cmd_logout() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /logout\n");
 	} else {
-		printf("Logged out of the server.\n");
-
 		if (socketFd != -1) {
+			printf("Logged out of the server at %s on port %s.\n", currentServerIP, currentServerPort);
 			memset (&packet, 0, sizeof(packet));
 			packet.type = EXIT;
 			packet.size = 0;
@@ -147,6 +159,16 @@ void cmd_logout() {
 			send (socketFd, buffer, packetSize, 0);
 			free (currentClientID);
 			currentClientID = NULL;
+			free (currentServerIP);
+			currentServerIP = NULL;
+			free (currentServerPort);
+			currentServerPort = NULL;
+
+			if (currentSessionID != NULL) {
+				free (currentSessionID);
+				currentSessionID = NULL;
+			}
+			
 			close (socketFd);
 			socketFd = -1;
 		} else {
@@ -164,7 +186,22 @@ void cmd_joinsession() {
 	if (!sessionID || strtok(NULL, " ") != NULL) {
 		printf ("Usage: /joinsession <session ID>\n");
 	} else {
-		// printf("JOIN SESSION command detected.\nSession ID: %s\n", sessionID);
+		if (socketFd == -1) {
+			printf("You must login to a chat server before attempting to join a session.\n");
+			return;
+		}
+
+		if (currentSessionID != NULL) {
+			printf ("Left session %s.\n", currentSessionID);
+			free(currentSessionID);
+			currentSessionID = NULL;
+			memset (&packet, 0, sizeof(packet));
+			packet.type = LEAVE_SESS;
+			packet.size = 0;
+			snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+			packetSize = create_bytearray (&packet, buffer);
+			send (socketFd, buffer, packetSize, 0);
+		}
 
 		memset (&packet, 0, sizeof(packet));
 		packet.type = JOIN;
@@ -188,7 +225,6 @@ void cmd_leavesession() {
 			printf ("Left session %s.\n", currentSessionID);
 			free(currentSessionID);
 			currentSessionID = NULL;
-
 			memset (&packet, 0, sizeof(packet));
 			packet.type = LEAVE_SESS;
 			packet.size = 0;
@@ -211,7 +247,10 @@ void cmd_createsession() {
 	if (!sessionID || strtok(NULL, " ") != NULL) {
 		printf ("Usage: /createsession <session ID>\n");
 	} else {
-		// printf("CREATE SESSION command detected.\nSession ID: %s\n", sessionID);
+		if (socketFd == -1) {
+			printf("You must login to a chat server before attempting to create a session.\n");
+			return;
+		}
 
 		memset (&packet, 0, sizeof(packet));
 		packet.type = NEW_SESS;
@@ -230,7 +269,10 @@ void cmd_list() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /list\n");
 	} else {
-		// printf("LIST command detected.\n");
+		if (socketFd == -1) {
+			printf("You must login to a chat server before requesting a list of users and sessions.\n");
+			return;
+		}
 
 		memset (&packet, 0, sizeof(packet));
 		packet.type = QUERY;
@@ -419,7 +461,7 @@ void rl_handler (char* rawLine) {
 		execute_line(strippedLine);
 	}
 
-	free (rawLine);
+	rl_free (rawLine);
 	return;
 }
 
