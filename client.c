@@ -149,7 +149,7 @@ void cmd_logout() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /logout\n");
 	} else {
-		if (socketFd != -1) {
+		if (currentServerIP != NULL) {
 			printf("Logged out of the server at %s on port %s.\n", currentServerIP, currentServerPort);
 			memset (&packet, 0, sizeof(packet));
 			packet.type = EXIT;
@@ -186,7 +186,7 @@ void cmd_joinsession() {
 	if (!sessionID || strtok(NULL, " ") != NULL) {
 		printf ("Usage: /joinsession <session ID>\n");
 	} else {
-		if (socketFd == -1) {
+		if (currentServerIP == NULL) {
 			printf("You must login to a chat server before attempting to join a session.\n");
 			return;
 		}
@@ -247,7 +247,7 @@ void cmd_createsession() {
 	if (!sessionID || strtok(NULL, " ") != NULL) {
 		printf ("Usage: /createsession <session ID>\n");
 	} else {
-		if (socketFd == -1) {
+		if (currentServerIP == NULL) {
 			printf("You must login to a chat server before attempting to create a session.\n");
 			return;
 		}
@@ -269,7 +269,7 @@ void cmd_list() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /list\n");
 	} else {
-		if (socketFd == -1) {
+		if (currentServerIP == NULL) {
 			printf("You must login to a chat server before requesting a list of users and sessions.\n");
 			return;
 		}
