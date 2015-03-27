@@ -219,7 +219,7 @@ void server_client_leave_session(char * clientID, int sock) {
 }
 
 void server_client_exit(char * clientID, int client_sock) {
-	if (clientID == NULL) {
+	if (clientID != NULL) {
 		Client * query_client = clientlist_find(&clientlist, clientID);
 		client_invalidate(query_client);
 		printf("%s has disconnected\n", clientID);
@@ -270,50 +270,71 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 	int client_sock = *((int*) conn_sock); 	// Get the client socket
 	char buffer[BUFFERLEN];
 	int bytes_received =0; 
-	while ((bytes_received = recv (client_sock, buffer, BUFFERLEN, 0)) ) {
-		buffer[bytes_received] = '\0';
-		printf("INCOMING PACK-ET: %s\n", buffer);
-		//send (client_sock, buffer, bytes_received, 0);
-		/*
-		char * temp = (char*)malloc(10000*sizeof(char));
-		sprintf(temp, "Client %d", client_sock);
-		Client * newClient = create_client(temp, "", "", "",  1, client_sock);
-		clientlist_insert_front(&clientlist, newClient);
-		*/
-		//server_listClients(client_sock);
+
+/*	struct timeval tv;
+	tv.tv_sec = 120;   1 Sec Timeout */
+//	tv.tv_usec = 0;  // Not init'ing this can cause strange errors
+//	setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
+
+	//
+	char clientName[BUFFERLEN];
+	int login_bytes_received = recv(client_sock, buffer, BUFFERLEN, 0);
+
+	if (login_bytes_received != 0) {
+		buffer[login_bytes_received] = '\0';
+		printf("FIRST PACK-ET: %s", buffer);
 		Packet incomingPack; 
 		extract_packet(&incomingPack, buffer);
+	
+		strcpy(clientName, incomingPack.source);
 
-		switch(incomingPack.type) {
-			case LOGIN:
-				server_login_client(incomingPack.source,incomingPack.data,client_sock);
-				break;
-			case EXIT:
-				server_client_exit(incomingPack.source, client_sock);
-				break;
-			case JOIN:
-				server_client_join_session(incomingPack.source, incomingPack.data, client_sock);
-				break;
-			case NEW_SESS:
-				server_add_new_session(incomingPack.source, incomingPack.data, client_sock);
-				break;
-			case LEAVE_SESS:
-				server_client_leave_session(incomingPack.source, client_sock);
-				break;
-			case MESSAGE:
-				server_broadcast(incomingPack.source, incomingPack.data);
-				break;
-			case QUERY:
-				sever_list_sessions(client_sock);
-				break;
-		//	default:
+		server_login_client(incomingPack.source,incomingPack.data,client_sock);
+
+
+		while ((bytes_received = recv (client_sock, buffer, BUFFERLEN, 0)) ) {
+			buffer[bytes_received] = '\0';
+			printf("INCOMING PACK-ET: %s", buffer);
+
+
+			Packet incomingPack; 
+			extract_packet(&incomingPack, buffer);
+
+			switch(incomingPack.type) {
+				case LOGIN:
+					server_login_client(incomingPack.source,incomingPack.data,client_sock);
+					strcpy(clientName, incomingPack.source);//to ensure tht the newest logged in client is always removed
+					break;
+				case EXIT:
+					server_client_exit(incomingPack.source, client_sock);
+					break;
+				case JOIN:
+					server_client_join_session(incomingPack.source, incomingPack.data, client_sock);
+					break;
+				case NEW_SESS:
+					server_add_new_session(incomingPack.source, incomingPack.data, client_sock);
+					break;
+				case LEAVE_SESS:
+					server_client_leave_session(incomingPack.source, client_sock);
+					break;
+				case MESSAGE:
+					server_broadcast(incomingPack.source, incomingPack.data);
+					break;
+				case QUERY:
+					sever_list_sessions(client_sock);
+					break;
+				//default:
+
+			}
 
 		}
+		printf("Went here\n");
 
-
-
+		server_client_exit(clientName, client_sock);
 	}
 
+
+
+	printf ("I closed a client\n");
 	close(client_sock);
 	
 	return 0;
