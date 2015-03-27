@@ -219,12 +219,12 @@ void server_client_leave_session(char * clientID, int sock) {
 }
 
 void server_client_exit(char * clientID, int client_sock) {
-	if (clientID == NULL)
-		return;
-	Client * query_client = clientlist_find(&clientlist, clientID);
-	client_invalidate(query_client);
+	if (clientID == NULL) {
+		Client * query_client = clientlist_find(&clientlist, clientID);
+		client_invalidate(query_client);
+		printf("%s has disconnected\n", clientID);
+	}
 	close(client_sock);
-	printf("%s has disconnected\n", clientID);
 	pthread_exit(NULL);
 }
 
