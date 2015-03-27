@@ -12,7 +12,7 @@ unsigned int create_bytearray (Packet* packet, char* buffer) {
 	}
 
 	unsigned int packetSize;
-	packetSize = snprintf (buffer, BUFFERLEN, "%d:%d:%s:%s", packet->type, packet->size, packet->source, packet->data);
+	packetSize = snprintf (buffer, BUFFERLEN, "%d:%d:%s:%s\n", packet->type, packet->size, packet->source, packet->data);
 	return packetSize;
 }
 

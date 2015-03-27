@@ -195,7 +195,6 @@ void cmd_leavesession() {
 			snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
 			packetSize = create_bytearray (&packet, buffer);
 			send (socketFd, buffer, packetSize, 0);
-			printf ("Left")
 		} else {
 			printf ("Cannot leave session - you are not part of any session.\n");
 		}
@@ -336,7 +335,7 @@ void execute_line (char *strippedLine) {
 		}
 	} else {
 		if (currentSessionID != NULL) {
-			printf("%s: %s\n", currentClientID, strippedLine);
+			// printf("%s: %s\n", currentClientID, strippedLine);
 
 			memset (&packet, 0, sizeof(packet));
 			packet.type = MESSAGE;
@@ -452,7 +451,16 @@ void handle_server_response () {
 	Packet serverResponse;
 	
 	extract_packet (&serverResponse, buffer);
-		
+
+	fputc ('\r', stdout);
+
+	unsigned int i;
+
+	for (i = 0; i < 50; ++i) {
+		fputc (' ', stdout);
+	}
+
+	fputc ('\r', stdout);
 	switch (serverResponse.type) {
 		case JN_ACK: {
 			printf ("Joined session %s.\n", serverResponse.data);
@@ -490,6 +498,7 @@ void handle_server_response () {
 		}
 	}
 
+	rl_forced_update_display();
 	return;
 }
 
@@ -515,7 +524,7 @@ int main () {
 			unsigned int bytesReceived;
 			if ((bytesReceived = recv (socketFd, buffer, BUFFERLEN, 0))) {
 				buffer[bytesReceived] = '\0';
-				// printf ("Received: %s\n", buffer);
+				// printf ("Received %d bytes: %s", bytesReceived, buffer);
 				handle_server_response ();
 			} else {
 				socketFd = -1;
