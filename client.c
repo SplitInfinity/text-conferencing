@@ -74,7 +74,7 @@ void cmd_login() {
 	if (!clientID || !password || !serverIPAddress || !serverPort || strtok (NULL, " ") != NULL) {
 		printf ("Usage: /login <client ID> <password> <server IP address> <server port>\n");
 	} else {
-		printf("LOGIN command detected.\nClientID: %s, Password: %s, Server IP: %s, Server Port: %s\n", clientID, password, serverIPAddress, serverPort);
+		// printf("LOGIN command detected.\nClientID: %s, Password: %s, Server IP: %s, Server Port: %s\n", clientID, password, serverIPAddress, serverPort);
 
 		struct addrinfo hints, *serverInfo = NULL;
 
@@ -136,7 +136,7 @@ void cmd_logout() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /logout\n");
 	} else {
-		printf("LOGOUT command detected.\n");
+		// printf("LOGOUT command detected.\n");
 
 		if (socketFd != -1) {
 			memset (&packet, 0, sizeof(packet));
@@ -164,7 +164,7 @@ void cmd_joinsession() {
 	if (!sessionID || strtok(NULL, " ") != NULL) {
 		printf ("Usage: /joinsession <session ID>\n");
 	} else {
-		printf("JOIN SESSION command detected.\nSession ID: %s\n", sessionID);
+		// printf("JOIN SESSION command detected.\nSession ID: %s\n", sessionID);
 
 		memset (&packet, 0, sizeof(packet));
 		packet.type = JOIN;
@@ -183,7 +183,7 @@ void cmd_leavesession() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /leavesession\n");
 	} else {
-		printf("LEAVE SESSION command detected.\n");
+		// printf("LEAVE SESSION command detected.\n");
 		if (currentSessionID != NULL) {
 			free(currentSessionID);
 			currentSessionID = NULL;
@@ -210,7 +210,7 @@ void cmd_createsession() {
 	if (!sessionID || strtok(NULL, " ") != NULL) {
 		printf ("Usage: /createsession <session ID>\n");
 	} else {
-		printf("CREATE SESSION command detected.\nSession ID: %s\n", sessionID);
+		// printf("CREATE SESSION command detected.\nSession ID: %s\n", sessionID);
 
 		memset (&packet, 0, sizeof(packet));
 		packet.type = NEW_SESS;
@@ -229,7 +229,7 @@ void cmd_list() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /list\n");
 	} else {
-		printf("LIST command detected.\n");
+		// printf("LIST command detected.\n");
 
 		memset (&packet, 0, sizeof(packet));
 		packet.type = QUERY;
@@ -247,7 +247,7 @@ void cmd_quit() {
 	if (strtok (NULL, " ") != NULL) {
 		printf ("Usage: /quit\n");
 	} else {
-		printf("QUIT command detected.\n");
+		// printf("QUIT command detected.\n");
 		userWantsToQuit = true;
 	}
 
@@ -453,7 +453,7 @@ void handle_server_response () {
 		
 	switch (serverResponse.type) {
 		case JN_ACK: {
-			printf ("Joined session %s\n.", serverResponse.data);
+			printf ("Joined session %s.\n", serverResponse.data);
 
 			if (currentSessionID != NULL) {
 				free(currentSessionID);
@@ -473,18 +473,12 @@ void handle_server_response () {
 		}
 
 		case NS_ACK: {
-			printf ("Created and joined session %s\n.", serverResponse.data);
-
-			if (currentSessionID != NULL) {
-				free(currentSessionID);
-			}
-
-			currentSessionID = strdup((char *)serverResponse.data);
+			printf ("Created session %s.\n", serverResponse.data);
 			break;
 		}
 
 		case QU_ACK: {
-			printf ("Here's a list of users and sessions:\n%s", serverResponse.data);
+			printf ("Here's a list of users and sessions: %s\n", serverResponse.data);
 			break;
 		}
 
@@ -519,7 +513,7 @@ int main () {
 			unsigned int bytesReceived;
 			if ((bytesReceived = recv (socketFd, buffer, BUFFERLEN, 0))) {
 				buffer[bytesReceived] = '\0';
-				printf ("Received: %s\n", buffer);
+				// printf ("Received: %s\n", buffer);
 				handle_server_response ();
 			} else {
 				socketFd = -1;
