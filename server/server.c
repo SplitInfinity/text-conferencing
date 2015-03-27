@@ -138,9 +138,7 @@ void server_broadcast (char * clientID , char * message){
 	while(sessionClient != NULL){
 		//We dont want to send to ourself
 		if (strcmp(the_client->clientID, sessionClient->cn_client->clientID) !=0){
-			int msg_len = strlen(message);
-			send (sessionClient->cn_client->socket, message, msg_len, 0);
-			send (sessionClient->cn_client->socket,"\n", 1,0);
+			server_transmit_tcp(sessionClient->cn_client->socket, MESSAGE, the_client->clientID, message );
 		}
 		sessionClient = sessionClient->nxt;
 	}
