@@ -9,11 +9,11 @@ server: server.c
 client.o: client.c
 	gcc -Wall -g client.c -c
 
+bossman: server/server.c utils.o
+	gcc -Wall -g -pthread utils.o server/server.c server/clientlist.c server/sessionlist.c -o server/server.out
+
 utils.o: utils.h utils.c
 	gcc -Wall -g utils.c -c
-
-bossman: server/server.c
-	gcc -Wall -g -pthread utils.c server/server.c server/clientlist.c server/sessionlist.c -o server/server.out
 
 clean:
 	rm client.out server/server.out *~

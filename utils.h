@@ -5,7 +5,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#define BUFFERLEN 1000
+#define BUFFERLEN 2000
 #define MAX_CLIENT_ID_SIZE 100
 #define MAX_CLIENT_PW_SIZE 100
 #define MAX_DATA_SIZE 1000

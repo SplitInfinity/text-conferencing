@@ -253,7 +253,7 @@ void server_add_new_session(char * clientID, char * sessionID, int sock){
 		server_client_leave_session(client->clientID, sock);
 	}
 	server_client_join_session(client->clientID,sessionID, sock);
-
+	printf("it joined\n");
 	
 }
 

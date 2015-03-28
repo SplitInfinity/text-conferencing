@@ -538,6 +538,7 @@ void handle_server_response () {
 		}
 
 		case MESSAGE: {
+			rl_ding();
 			printf ("%s: %s\n", serverResponse.source, serverResponse.data);
 			break;
 		}
