@@ -24,6 +24,7 @@
 #define MESSAGE 11	// Send message/Display message
 #define QUERY 12        // Get list of users and sessions
 #define QU_ACK 13      	// Acknowledge QUERY and send data
+#define MESSAGE_STATUS 14
 
 /*
  * Struct that represents a packet sent by the client and server

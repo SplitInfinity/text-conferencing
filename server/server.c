@@ -99,7 +99,7 @@ void sever_list_sessions(int sock){
 	if (session_traverse == NULL){
 		sprintf (msg, "No sessions yet, please make a session");
 	} else {
-		sprintf (msg, " ");
+		sprintf (msg, "SESSION_NAME[USERS]: ");
 	}
 
 	while(session_traverse != NULL){
@@ -126,7 +126,28 @@ void sever_list_sessions(int sock){
 }
 
 
-void server_broadcast (char * clientID , char * message){
+void server_broadcast (char * clientID , char * sessionID, char * sender, char * message){
+	/* Code to broadcast messages */
+	if (message == NULL || clientID == NULL || sender == NULL || sessionID == NULL)
+		return;
+
+	Session * queriedsession = sessionlist_find(&sessionlist, sessionID);
+	if (queriedsession == NULL || queriedsession->clientsInSession == NULL)
+		return;
+
+	ClientNode * sessionClient = queriedsession->clientsInSession;
+
+	while(sessionClient != NULL){
+		//We dont want to send to ourself
+		if (strcmp(clientID, sessionClient->cn_client->clientID) !=0){
+			server_transmit_tcp(sessionClient->cn_client->socket, MESSAGE, sender, message );
+		}
+		sessionClient = sessionClient->nxt;
+	}
+}
+
+
+void server_broadcast_preprocess (char * clientID , char * message) {
 	/* Code to broadcast messages */
 	if (message == NULL || clientID == NULL)
 		return;
@@ -136,22 +157,12 @@ void server_broadcast (char * clientID , char * message){
 	if (the_client == NULL)
 		return;
 
+	server_broadcast(the_client->clientID, the_client->currentSessionID, the_client->clientID, message);
 
-
-	Session * queriedsession = sessionlist_find(&sessionlist, the_client->currentSessionID);
-	if (queriedsession == NULL || queriedsession->clientsInSession == NULL)
-		return;
-
-	ClientNode * sessionClient = queriedsession->clientsInSession;
-
-	while(sessionClient != NULL){
-		//We dont want to send to ourself
-		if (strcmp(the_client->clientID, sessionClient->cn_client->clientID) !=0){
-			server_transmit_tcp(sessionClient->cn_client->socket, MESSAGE, the_client->clientID, message );
-		}
-		sessionClient = sessionClient->nxt;
-	}
 }
+
+
+
 
 void server_client_join_session(char * clientID, char * sessionID, int sock){
 	char msg[BUFFERLEN];
@@ -187,6 +198,9 @@ void server_client_join_session(char * clientID, char * sessionID, int sock){
 	sessionlist_addclient(&sessionlist,sessionID, client);
 	strcpy(client->currentSessionID, sessionID);
 	server_transmit_tcp(sock, JN_ACK, "SERVER", sessionID);
+
+	sprintf(msg, "%s has joined session %s", client->clientID, client->currentSessionID);
+	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg);
 }
 
 void server_client_leave_session(char * clientID, int sock) {
@@ -201,7 +215,13 @@ void server_client_leave_session(char * clientID, int sock) {
 		return;
 
 	clientlist_remove(&(session->clientsInSession), client->clientID);
+
+	char msg[BUFFERLEN];
+	sprintf(msg, "%s has left session %s", client->clientID, client->currentSessionID);
+	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg);
+
 	strcpy(client->currentSessionID, "");
+
 
 }
 
@@ -240,6 +260,7 @@ void server_add_new_session(char * clientID, char * sessionID, int sock){
 void server_client_exit(char * clientID, int client_sock) {
 	if (clientID != NULL) {
 		Client * query_client = clientlist_find(&clientlist, clientID);
+		server_client_leave_session(clientID, client_sock);
 		client_invalidate(query_client);
 		printf("%s has disconnected\n", clientID);
 	}
@@ -290,10 +311,10 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 	char buffer[BUFFERLEN];
 	int bytes_received =0; 
 
-/*	struct timeval tv;
-	tv.tv_sec = 120;   1 Sec Timeout */
-//	tv.tv_usec = 0;  // Not init'ing this can cause strange errors
-//	setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
+	struct timeval tv;
+	tv.tv_sec = 120;   //2minute timeout
+	tv.tv_usec = 0;  // Not init'ing this can cause strange errors
+	setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
 
 	//
 	char clientName[BUFFERLEN];
@@ -336,7 +357,7 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 					server_client_leave_session(incomingPack.source, client_sock);
 					break;
 				case MESSAGE:
-					server_broadcast(incomingPack.source, incomingPack.data);
+					server_broadcast_preprocess(incomingPack.source, incomingPack.data);
 					break;
 				case QUERY:
 					sever_list_sessions(client_sock);

@@ -520,7 +520,7 @@ void handle_server_response () {
 			char reasonForFailure[MAX_DATA_SIZE] = {0};
 
 			sscanf ((char *)serverResponse.data, "%[^,]%*[,]%[^\n]", sessionID, reasonForFailure);
-			printf ("Failed to join session %s. Reason: %s\n", sessionID, reasonForFailure);
+			printf ("Failed to join session %s. %s\n", sessionID, reasonForFailure);
 			break;
 		}
 
@@ -530,7 +530,7 @@ void handle_server_response () {
 		}
 
 		case QU_ACK: {
-			printf ("Here's a list of users and sessions: %s\n", serverResponse.data);
+			printf ("%s\n", serverResponse.data);
 			break;
 		}
 
