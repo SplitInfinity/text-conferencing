@@ -99,9 +99,9 @@ void sever_list_sessions(int sock){
 	
 	Session * session_traverse = sessionlist;
 	if (session_traverse == NULL){
-		sprintf (msg, "No sessions yet, please make a session");
+		sprintf (msg, "No sessions, please make a session");
 	} else {
-		sprintf (msg, "SESSION_NAME[USERS]: ");
+		sprintf (msg, "session_name[users]: ");
 	}
 
 	while(session_traverse != NULL){
@@ -163,7 +163,30 @@ void server_broadcast_preprocess (char * clientID , char * message, int broadcas
 
 }
 
+void server_client_leave_session(char * clientID, int sock) {
+	if (clientID == NULL || sock < 0)
+		return;
+	Client * client = clientlist_find(&clientlist, clientID);
+	if (client == NULL)
+		return;
 
+	Session * session = sessionlist_find(&sessionlist, client->currentSessionID);
+	if (session == NULL)
+		return;
+
+	clientlist_remove(&(session->clientsInSession), client->clientID);
+	if (session->clientsInSession == NULL){
+		sessionlist_remove(&sessionlist,session->sessionID);
+	}
+
+	char msg[BUFFERLEN] ={0};
+	sprintf(msg, ANSI_COLOUR_RED"%s has left session %s"ANSI_COLOUR_RESET, client->clientID, client->currentSessionID);
+	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg, MESSAGE);
+
+	strcpy(client->currentSessionID, "");
+
+
+}
 
 
 void server_client_join_session(char * clientID, char * sessionID, int sock){
@@ -193,39 +216,18 @@ void server_client_join_session(char * clientID, char * sessionID, int sock){
 
 
 	if (strcmp(client->currentSessionID, "") != 0) {
-		sprintf (msg, "%s,Please exit current session before joining new session", sessionID);
-		server_transmit_tcp(sock, JN_NAK, "SERVER", msg);
-		return;
+		server_client_leave_session(client->clientID, sock);
 	}
+
 	sessionlist_addclient(&sessionlist,sessionID, client);
 	strcpy(client->currentSessionID, sessionID);
 	server_transmit_tcp(sock, JN_ACK, "SERVER", sessionID);
 
-	sprintf(msg, "%s has joined session %s", client->clientID, client->currentSessionID);
+	sprintf(msg, ANSI_COLOUR_GREEN"%s has joined session %s"ANSI_COLOUR_RESET, client->clientID, client->currentSessionID);
 	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg, MESSAGE);
 }
 
-void server_client_leave_session(char * clientID, int sock) {
-	if (clientID == NULL || sock < 0)
-		return;
-	Client * client = clientlist_find(&clientlist, clientID);
-	if (client == NULL)
-		return;
 
-	Session * session = sessionlist_find(&sessionlist, client->currentSessionID);
-	if (session == NULL)
-		return;
-
-	clientlist_remove(&(session->clientsInSession), client->clientID);
-
-	char msg[BUFFERLEN] ={0};
-	sprintf(msg, "%s has left session %s", client->clientID, client->currentSessionID);
-	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg, MESSAGE);
-
-	strcpy(client->currentSessionID, "");
-
-
-}
 
 void server_add_new_session(char * clientID, char * sessionID, int sock){
 	/* Code to add session */
@@ -249,11 +251,14 @@ void server_add_new_session(char * clientID, char * sessionID, int sock){
 	sessionlist_insert_front(&sessionlist, newSession);
 	server_transmit_tcp(sock, NS_ACK, "SERVER", newSession->sessionID);
 
+	printf("%s was added to list of sessions\n", newSession->sessionID);
 	if (strcmp(client->currentSessionID, "") != 0){
 		server_client_leave_session(client->clientID, sock);
 	}
-	server_client_join_session(client->clientID,sessionID, sock);
-	printf("it joined\n");
+	usleep((useconds_t) 600000);
+	printf("%s will be added to session %s\n", client->clientID, newSession->sessionID);
+	server_client_join_session(client->clientID,newSession->sessionID, client->socket);
+	
 	
 }
 
@@ -372,7 +377,7 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 
 
 
-	printf ("I closed a client\n");
+	printf ("Server closed a client\n");
 	close(client_sock);
 	
 	return 0;

@@ -593,7 +593,6 @@ int main () {
 			unsigned int bytesReceived;
 			if ((bytesReceived = recv (socketFd, buffer, BUFFERLEN, 0))) {
 				buffer[bytesReceived] = '\0';
-				// printf ("Received %d bytes: %s", bytesReceived, buffer);
 				handle_server_response ();
 			} else {
 				socketFd = -1;
