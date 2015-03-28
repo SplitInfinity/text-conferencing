@@ -16,4 +16,4 @@ bossman: server/server.c
 	gcc -Wall -g -pthread utils.c server/server.c server/clientlist.c server/sessionlist.c -o server/server.out
 
 clean:
-	rm client.out server.out *~
+	rm client.out server/server.out *~

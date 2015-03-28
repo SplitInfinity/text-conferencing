@@ -26,6 +26,7 @@ char *currentServerPort = NULL;
 bool userWantsToQuit = false;
 char buffer[BUFFERLEN] = {0};
 unsigned int packetSize = 0;
+int startedTyping = 0;
 
 Packet packet;
 
@@ -355,6 +356,8 @@ char* strip_whitespace (char *line) {
  */
 
 void execute_line (char *strippedLine) {
+	startedTyping = 0;
+
 	if (strippedLine == NULL || *strippedLine == '\0') {
 		return;
 	}
@@ -557,7 +560,6 @@ int main () {
 	printf ("Text Conferencing Client. Type /help to see a list of available commands.\n");
 	rl_callback_handler_install ("> ", (rl_vcpfunc_t*)&rl_handler);
 
-	int startedTyping = 0;
 	while (userWantsToQuit == false) {
 		int nfds = createReadFdSet(&readFdSet);
 		select (nfds, &readFdSet, NULL, NULL, NULL);
@@ -578,9 +580,9 @@ int main () {
 					send (socketFd, buffer, packetSize, 0);
 				} else if (!rl_alphabetic(rl_line_buffer[0]) && startedTyping == 1) {
 					startedTyping = 0;
-					snprintf (packet.data, sizeof(packet.data), "%s has stopped typing something...", currentClientID);
+					snprintf (packet.data, sizeof(packet.data), "%s has stopped typing something.", currentClientID);
 					packetSize = create_bytearray (&packet, buffer);
-					// send (socketFd, buffer, packetSize, 0);
+					send (socketFd, buffer, packetSize, 0);
 				}
 			}
 		}
