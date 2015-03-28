@@ -31,10 +31,10 @@ static Session * sessionlist = NULL;
 
 
 
-void waitFor (unsigned int secs) {
-    int retTime = time(0) + secs;     // Get finishing time.
-    while (time(0) < retTime);    // Loop until it arrives.
-}
+// void waitFor (unsigned int secs) {
+//     int retTime = time(0) + secs;     // Get finishing time.
+//     while (time(0) < retTime);    // Loop until it arrives.
+// }
 
 /*
 void server_listClients(int client_sock){
@@ -92,23 +92,32 @@ void server_transmit_tcp (int client_sock, int packetType, char * src, char * da
 void sever_list_sessions(int sock){
 	/* Code for listing */
 	char msg[BUFFERLEN];
-	sprintf (msg ,"Users: ");
-	ClientNode * client_traverse = clientlist;
-	while (client_traverse != NULL ){
-		if (client_traverse->cn_client->socket != -1){
-			strcat(msg, client_traverse->cn_client->clientID);
-			if (client_traverse->nxt != NULL)
-				strcat(msg, ",");
-		}
-		client_traverse = client_traverse->nxt;
-	}
+	
 	//strcat(msg, "\n");
-	strcat(msg, " Sessions: ");
+	
 	Session * session_traverse = sessionlist;
+	if (session_traverse == NULL){
+		sprintf (msg, "No sessions yet, please make a session");
+	} else {
+		sprintf (msg, " ");
+	}
+
 	while(session_traverse != NULL){
 		strcat(msg, session_traverse->sessionID);
+		strcat (msg ," [");
+		ClientNode * client_traverse = session_traverse->clientsInSession;
+		while (client_traverse != NULL ){
+			if (client_traverse->cn_client->socket != -1){
+				strcat(msg, client_traverse->cn_client->clientID);
+				if (client_traverse->nxt != NULL)
+					strcat(msg, ",");
+			}
+			client_traverse = client_traverse->nxt;
+		}
+		strcat(msg, "]");
+
 		if (session_traverse->nxt != NULL)
-			strcat(msg, ",");
+			strcat(msg, ", ");
 		session_traverse = session_traverse->nxt;
 	}
 
@@ -144,57 +153,35 @@ void server_broadcast (char * clientID , char * message){
 	}
 }
 
-
-void server_add_new_session(char * clientID, char * sessionID, int sock){
-	/* Code to add session */
-	if (sessionID == NULL || sock < 0)
-		return;
-
-	if (sessionlist_find(&sessionlist, sessionID) != NULL)
-		return;
-
-	Client * client = clientlist_find(&clientlist, clientID);
-	if (client == NULL)
-		return;
-
-	if (client->socket == -1)
-		return;
-
-	Session * newSession = create_session(sessionID);
-	if (newSession == NULL)
-		return;
-
-	sessionlist_insert_front(&sessionlist, newSession);
-
-	server_transmit_tcp(sock, NS_ACK, "SERVER", newSession->sessionID);
-}
-
-
-
 void server_client_join_session(char * clientID, char * sessionID, int sock){
+	char msg[BUFFERLEN];
 	/* Code to add session */
 	if (clientID == NULL || sessionID == NULL || sock < 0)
 		return;
 
 	Client * client = clientlist_find(&clientlist, clientID);
 	if (client == NULL) {
-		server_transmit_tcp(sock, JN_NAK, "SERVER", "This client could not be found");
+		sprintf (msg, "%s,This client could not be found", sessionID);
+		server_transmit_tcp(sock, JN_NAK, "SERVER", msg);
 		return;
 	}
 	if (client->socket == -1){
-		server_transmit_tcp(sock, JN_NAK, "SERVER", "You Have Not Been AUTHENTICATED, Please Login");
+		sprintf (msg, "%s,You have not been authenticated, please login", sessionID);
+		server_transmit_tcp(sock, JN_NAK, "SERVER", msg);
 		return;
 	}
 
 
 	if (sessionlist_find(&sessionlist, sessionID) == NULL) {
-		server_transmit_tcp(sock, JN_NAK, "SERVER", "This Session Does Not Exist");
+		sprintf (msg, "%s,This session does not exist", sessionID);
+		server_transmit_tcp(sock, JN_NAK, "SERVER", msg);
 		return;
 	}
 
 
 	if (strcmp(client->currentSessionID, "") != 0) {
-		server_transmit_tcp(sock, JN_NAK, "SERVER", "Please Exit Current Session Before Joining New Session");
+		sprintf (msg, "%s,Please exit current session before joining new session", sessionID);
+		server_transmit_tcp(sock, JN_NAK, "SERVER", msg);
 		return;
 	}
 	sessionlist_addclient(&sessionlist,sessionID, client);
@@ -218,6 +205,38 @@ void server_client_leave_session(char * clientID, int sock) {
 
 }
 
+void server_add_new_session(char * clientID, char * sessionID, int sock){
+	/* Code to add session */
+	if (sessionID == NULL || sock < 0)
+		return;
+
+	if (sessionlist_find(&sessionlist, sessionID) != NULL)
+		return;
+
+	Client * client = clientlist_find(&clientlist, clientID);
+	if (client == NULL)
+		return;
+
+	if (client->socket == -1)
+		return;
+
+	Session * newSession = create_session(sessionID);
+	if (newSession == NULL)
+		return;
+
+	sessionlist_insert_front(&sessionlist, newSession);
+	server_transmit_tcp(sock, NS_ACK, "SERVER", newSession->sessionID);
+
+	if (strcmp(client->currentSessionID, "") != 0){
+		server_client_leave_session(client->clientID, sock);
+	}
+	server_client_join_session(client->clientID,sessionID, sock);
+
+	
+}
+
+
+
 void server_client_exit(char * clientID, int client_sock) {
 	if (clientID != NULL) {
 		Client * query_client = clientlist_find(&clientlist, clientID);
@@ -239,17 +258,17 @@ void server_login_client(char * clientID, char * passw, int sock) {
 	Client * client = clientlist_find(&clientlist, clientID);
 	if (client == NULL) {
 		//SEND A NACK
-		server_transmit_tcp(sock, LO_NAK, "SERVER", "CLIENT DOES NOT EXIST");
+		server_transmit_tcp(sock, LO_NAK, "SERVER", "Client does not exist");
 		server_client_exit (clientID, sock);
 		return;
 	} else if (client->socket != -1) {
 		//SEND A NACK
-		server_transmit_tcp(sock, LO_NAK, "SERVER", "YOU ARE ALREADY LOGGED IN");
+		server_transmit_tcp(sock, LO_NAK, "SERVER", "You are already logged in");
 		server_client_exit (clientID, sock);
 		return;
 	} else if (strcmp(passw, client->password) != 0){
 		//SEND A NACK
-		server_transmit_tcp(sock, LO_NAK, "SERVER", "WRONG PASSWORD");
+		server_transmit_tcp(sock, LO_NAK, "SERVER", "Invalid password");
 		server_client_exit (clientID, sock);
 		return;
 	}
@@ -327,8 +346,6 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 			}
 
 		}
-		printf("Went here\n");
-
 		server_client_exit(clientName, client_sock);
 	}
 
