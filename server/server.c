@@ -7,7 +7,7 @@
 #include <sys/types.h>//What is the types for?
 #include <sys/socket.h>
 #include <pthread.h>
-#include <time.h>
+#include <sys/time.h>
 #include "clientlist.h"
 #include "sessionlist.h"
 #include "err.h"
@@ -63,11 +63,11 @@ void server_transmit_tcp (int client_sock, int packetType, char * src, char * da
 	strcpy(sendPack.data, data);
 
 	//pack the bytearray
-	char * sendMsg = (char * ) malloc(BUFFERLEN*sizeof(char));
+	//char * sendMsg = (char * ) malloc(BUFFERLEN*sizeof(char));
+	char sendMsg[BUFFERLEN];
 	int sendMsgSize = create_bytearray(&sendPack, sendMsg);
 
 	send (client_sock, sendMsg, sendMsgSize, 0);
-	free (sendMsg);
 }
 
 
@@ -84,14 +84,16 @@ void server_transmit_tcp (int client_sock, int packetType, char * src, char * da
  	while ( (confline = read_config()) != NULL){
  		Client * newClient = create_client(confline->clientID, confline->password, "", "",  1, -1);
  		clientlist_insert_front(&clientlist, newClient);
+ 		free(confline);
  	} 
+
  }
 
 
 
 void sever_list_sessions(int sock){
 	/* Code for listing */
-	char msg[BUFFERLEN];
+	char msg[BUFFERLEN] = {0};
 	
 	//strcat(msg, "\n");
 	
@@ -165,7 +167,7 @@ void server_broadcast_preprocess (char * clientID , char * message, int broadcas
 
 
 void server_client_join_session(char * clientID, char * sessionID, int sock){
-	char msg[BUFFERLEN];
+	char msg[BUFFERLEN] ={0};
 	/* Code to add session */
 	if (clientID == NULL || sessionID == NULL || sock < 0)
 		return;
@@ -216,7 +218,7 @@ void server_client_leave_session(char * clientID, int sock) {
 
 	clientlist_remove(&(session->clientsInSession), client->clientID);
 
-	char msg[BUFFERLEN];
+	char msg[BUFFERLEN] ={0};
 	sprintf(msg, "%s has left session %s", client->clientID, client->currentSessionID);
 	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg, MESSAGE);
 
@@ -308,16 +310,11 @@ void server_login_client(char * clientID, char * passw, int sock) {
  */
 void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a function pointer?
 	int client_sock = *((int*) conn_sock); 	// Get the client socket
-	char buffer[BUFFERLEN];
+	char buffer[BUFFERLEN] = {0};
 	int bytes_received =0; 
 
-	struct timeval tv;
-	tv.tv_sec = 120;   //2minute timeout
-	tv.tv_usec = 0;  // Not init'ing this can cause strange errors
-	setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
-
 	//
-	char clientName[BUFFERLEN];
+	char clientName[BUFFERLEN] ={0};
 	int login_bytes_received = recv(client_sock, buffer, BUFFERLEN, 0);
 
 	if (login_bytes_received != 0) {

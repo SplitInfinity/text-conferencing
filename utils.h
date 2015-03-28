@@ -6,9 +6,9 @@
 #define UTILS_H
 
 #define BUFFERLEN 1000
-#define MAX_CLIENT_ID_SIZE 30
-#define MAX_CLIENT_PW_SIZE 30
-#define MAX_DATA_SIZE 100
+#define MAX_CLIENT_ID_SIZE 100
+#define MAX_CLIENT_PW_SIZE 100
+#define MAX_DATA_SIZE 1000
 
 // Macros for packet type
 #define LOGIN 1 	// Login
