@@ -191,17 +191,17 @@ void cmd_joinsession() {
 			return;
 		}
 
-		if (currentSessionID != NULL) {
-			printf ("Left session %s.\n", currentSessionID);
-			free(currentSessionID);
-			currentSessionID = NULL;
-			memset (&packet, 0, sizeof(packet));
-			packet.type = LEAVE_SESS;
-			packet.size = 0;
-			snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
-			packetSize = create_bytearray (&packet, buffer);
-			send (socketFd, buffer, packetSize, 0);
-		}
+		// if (currentSessionID != NULL) {
+		// 	printf ("Left session %s.\n", currentSessionID);
+		// 	free(currentSessionID);
+		// 	currentSessionID = NULL;
+		// 	memset (&packet, 0, sizeof(packet));
+		// 	packet.type = LEAVE_SESS;
+		// 	packet.size = 0;
+		// 	snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+		// 	packetSize = create_bytearray (&packet, buffer);
+		// 	send (socketFd, buffer, packetSize, 0);
+		// }
 
 		memset (&packet, 0, sizeof(packet));
 		packet.type = JOIN;
