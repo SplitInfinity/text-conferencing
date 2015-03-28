@@ -26,6 +26,15 @@
 #define QU_ACK 13      	// Acknowledge QUERY and send data
 #define MESSAGE_STATUS 14
 
+// ANSI COLOUR CODES
+#define ANSI_COLOUR_RED     "\x1b[31m"
+#define ANSI_COLOUR_GREEN   "\x1b[32m"
+#define ANSI_COLOUR_YELLOW  "\x1b[33m"
+#define ANSI_COLOUR_BLUE    "\x1b[34m"
+#define ANSI_COLOUR_MAGENTA "\x1b[35m"
+#define ANSI_COLOUR_CYAN    "\x1b[36m"
+#define ANSI_COLOUR_RESET   "\x1b[0m"
+
 /*
  * Struct that represents a packet sent by the client and server
  * 	type - packet type (see macros above)

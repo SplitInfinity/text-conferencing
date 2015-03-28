@@ -121,7 +121,7 @@ void cmd_login() {
 			
 			switch (packet.type) {
 				case LO_ACK: {
-					printf ("Logged in successfully to chat server at %s on port %s.\n", serverIPAddress, serverPort);
+					printf (ANSI_COLOUR_GREEN"Logged in successfully to chat server at %s on port %s.\n"ANSI_COLOUR_RESET, serverIPAddress, serverPort);
 					currentClientID = strdup (clientID);
 					currentServerIP = strdup (serverIPAddress);
 					currentServerPort = strdup (serverPort);
@@ -129,7 +129,7 @@ void cmd_login() {
 				}
 
 				case LO_NAK: {
-					printf ("Login unsuccessful. Reason: %s\n", packet.data);
+					printf (ANSI_COLOUR_RED"Login unsuccessful. Reason: %s\n"ANSI_COLOUR_RESET, packet.data);
 					socketFd = -1;
 					break;
 				}
@@ -498,14 +498,14 @@ void handle_server_response () {
 
 	unsigned int i;
 
-	for (i = 0; i < 50; ++i) {
+	for (i = 0; i < 70; ++i) {
 		fputc (' ', stdout);
 	}
 
 	fputc ('\r', stdout);
 	switch (serverResponse.type) {
 		case JN_ACK: {
-			printf ("Joined session %s.\n", serverResponse.data);
+			printf (ANSI_COLOUR_GREEN"Joined session %s.\n"ANSI_COLOUR_RESET, serverResponse.data);
 
 			if (currentSessionID != NULL) {
 				free(currentSessionID);
@@ -520,12 +520,12 @@ void handle_server_response () {
 			char reasonForFailure[MAX_DATA_SIZE] = {0};
 
 			sscanf ((char *)serverResponse.data, "%[^,]%*[,]%[^\n]", sessionID, reasonForFailure);
-			printf ("Failed to join session %s. %s\n", sessionID, reasonForFailure);
+			printf (ANSI_COLOUR_RED"Failed to join session %s. %s\n"ANSI_COLOUR_RESET, sessionID, reasonForFailure);
 			break;
 		}
 
 		case NS_ACK: {
-			printf ("Created session %s.\n", serverResponse.data);
+			printf (ANSI_COLOUR_GREEN"Created session %s.\n"ANSI_COLOUR_RESET, serverResponse.data);
 			break;
 		}
 
@@ -536,6 +536,11 @@ void handle_server_response () {
 
 		case MESSAGE: {
 			printf ("%s: %s\n", serverResponse.source, serverResponse.data);
+			break;
+		}
+
+		case MESSAGE_STATUS: {
+			printf (ANSI_COLOUR_BLUE"%s\n"ANSI_COLOUR_RESET, serverResponse.data);
 			break;
 		}
 	}
@@ -552,13 +557,32 @@ int main () {
 	printf ("Text Conferencing Client. Type /help to see a list of available commands.\n");
 	rl_callback_handler_install ("> ", (rl_vcpfunc_t*)&rl_handler);
 
+	int startedTyping = 0;
 	while (userWantsToQuit == false) {
 		int nfds = createReadFdSet(&readFdSet);
 		select (nfds, &readFdSet, NULL, NULL, NULL);
 
-		if (FD_ISSET (STDIN, &readFdSet)) {						
+		if (FD_ISSET (STDIN, &readFdSet)) {	
 			// Keyboard input is waiting - read a character from the terminal
 			rl_callback_read_char();
+
+			if (currentSessionID != NULL) {
+				memset (&packet, 0, sizeof(packet));
+				packet.type = MESSAGE_STATUS;
+				snprintf (packet.source, sizeof(packet.source), "%s", currentClientID);
+
+				if (rl_alphabetic(rl_line_buffer[0]) && startedTyping == 0) {
+					startedTyping = 1;
+					snprintf (packet.data, sizeof(packet.data), "%s is typing something...", currentClientID);
+					packetSize = create_bytearray (&packet, buffer);
+					send (socketFd, buffer, packetSize, 0);
+				} else if (!rl_alphabetic(rl_line_buffer[0]) && startedTyping == 1) {
+					startedTyping = 0;
+					snprintf (packet.data, sizeof(packet.data), "%s has stopped typing something...", currentClientID);
+					packetSize = create_bytearray (&packet, buffer);
+					// send (socketFd, buffer, packetSize, 0);
+				}
+			}
 		}
 
 		if (FD_ISSET (socketFd, &readFdSet)) {			
@@ -574,8 +598,7 @@ int main () {
 		}
 	}
 
-	// Uninstall callback_handler so Readline doesn't keep calling rl_handler
-	// after the program has terminated
+	// Uninstall callback_handler
 	rl_callback_handler_remove();
 	return 0;
 }
