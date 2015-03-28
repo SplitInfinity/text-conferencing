@@ -126,7 +126,7 @@ void sever_list_sessions(int sock){
 }
 
 
-void server_broadcast (char * clientID , char * sessionID, char * sender, char * message){
+void server_broadcast (char * clientID , char * sessionID, char * sender, char * message, int broadcast_type){
 	/* Code to broadcast messages */
 	if (message == NULL || clientID == NULL || sender == NULL || sessionID == NULL)
 		return;
@@ -140,14 +140,14 @@ void server_broadcast (char * clientID , char * sessionID, char * sender, char *
 	while(sessionClient != NULL){
 		//We dont want to send to ourself
 		if (strcmp(clientID, sessionClient->cn_client->clientID) !=0){
-			server_transmit_tcp(sessionClient->cn_client->socket, MESSAGE, sender, message );
+			server_transmit_tcp(sessionClient->cn_client->socket, broadcast_type, sender, message );
 		}
 		sessionClient = sessionClient->nxt;
 	}
 }
 
 
-void server_broadcast_preprocess (char * clientID , char * message) {
+void server_broadcast_preprocess (char * clientID , char * message, int broadcast_type) {
 	/* Code to broadcast messages */
 	if (message == NULL || clientID == NULL)
 		return;
@@ -157,7 +157,7 @@ void server_broadcast_preprocess (char * clientID , char * message) {
 	if (the_client == NULL)
 		return;
 
-	server_broadcast(the_client->clientID, the_client->currentSessionID, the_client->clientID, message);
+	server_broadcast(the_client->clientID, the_client->currentSessionID, the_client->clientID, message, broadcast_type);
 
 }
 
@@ -200,7 +200,7 @@ void server_client_join_session(char * clientID, char * sessionID, int sock){
 	server_transmit_tcp(sock, JN_ACK, "SERVER", sessionID);
 
 	sprintf(msg, "%s has joined session %s", client->clientID, client->currentSessionID);
-	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg);
+	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg, MESSAGE);
 }
 
 void server_client_leave_session(char * clientID, int sock) {
@@ -218,7 +218,7 @@ void server_client_leave_session(char * clientID, int sock) {
 
 	char msg[BUFFERLEN];
 	sprintf(msg, "%s has left session %s", client->clientID, client->currentSessionID);
-	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg);
+	server_broadcast(client->clientID, client->currentSessionID, "SERVER", msg, MESSAGE);
 
 	strcpy(client->currentSessionID, "");
 
@@ -357,10 +357,13 @@ void * server_client_handler(void * conn_sock){		//DOes this HAVE to be a functi
 					server_client_leave_session(incomingPack.source, client_sock);
 					break;
 				case MESSAGE:
-					server_broadcast_preprocess(incomingPack.source, incomingPack.data);
+					server_broadcast_preprocess(incomingPack.source, incomingPack.data, MESSAGE);
 					break;
 				case QUERY:
 					sever_list_sessions(client_sock);
+					break;
+				case MESSAGE_STATUS:
+					server_broadcast_preprocess(incomingPack.source, incomingPack.data, MESSAGE_STATUS);
 					break;
 				//default:
 
