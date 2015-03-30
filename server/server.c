@@ -266,9 +266,14 @@ void server_add_new_session(char * clientID, char * sessionID, int sock){
 void server_client_exit(char * clientID, int client_sock) {
 	if (clientID != NULL) {
 		Client * query_client = clientlist_find(&clientlist, clientID);
-		server_client_leave_session(clientID, client_sock);
-		client_invalidate(query_client);
-		printf("%s has disconnected\n", clientID);
+		if (query_client != NULL) {
+		
+			server_client_leave_session(query_client->clientID, query_client->socket);
+			//
+			close(query_client->socket);
+			client_invalidate(query_client);
+			printf("%s has disconnected\n", query_client->clientID);
+		}
 	}
 	close(client_sock);
 	pthread_exit(NULL);
@@ -291,7 +296,7 @@ void server_login_client(char * clientID, char * passw, int sock) {
 	} else if (client->socket != -1) {
 		//SEND A NACK
 		server_transmit_tcp(sock, LO_NAK, "SERVER", "You are already logged in");
-		server_client_exit (clientID, sock);
+		server_client_exit (NULL, sock);
 		return;
 	} else if (strcmp(passw, client->password) != 0){
 		//SEND A NACK
