@@ -10,7 +10,6 @@
 #include <sys/time.h>
 #include "clientlist.h"
 #include "sessionlist.h"
-#include "err.h"
 #include "../utils.h"
 
 
