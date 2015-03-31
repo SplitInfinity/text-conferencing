@@ -213,6 +213,11 @@ void server_client_join_session(char * clientID, char * sessionID, int sock){
 		return;
 	}
 
+	if (strcmp(client->currentSessionID, sessionID) == 0) {
+		sprintf (msg, "%s,You are already in this session", sessionID);
+		server_transmit_tcp(sock, JN_NAK, "SERVER", msg);
+		return;
+	}
 
 	if (strcmp(client->currentSessionID, "") != 0) {
 		server_client_leave_session(client->clientID, sock);
